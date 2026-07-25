@@ -179,6 +179,8 @@ export class StratumServer extends EventEmitter {
     const currentJob = this.jobManager.getCurrentJob();
     if (currentJob) {
       this.sendJobToSession(session, currentJob, true);
+    } else {
+      console.warn(`[Stratum Warning] Worker ${session.minerAddress}.${session.workerName} authorized, but no active block template available from Bitcoin Node yet!`);
     }
   }
 

@@ -2,6 +2,7 @@ import http from 'http';
 import { BitcoinRpcClient } from './rpc';
 import { JobManager } from '../pool/job';
 import { StratumServer } from '../stratum/server';
+import { config } from '../config';
 
 export class BlockNotifier {
   private rpc: BitcoinRpcClient;
@@ -9,6 +10,7 @@ export class BlockNotifier {
   private stratumServer: StratumServer;
   private pollInterval: NodeJS.Timeout | null = null;
   private lastBlockHash = '';
+  private lastErrorLog = 0;
 
   constructor(rpc: BitcoinRpcClient, jobManager: JobManager, stratumServer: StratumServer) {
     this.rpc = rpc;
@@ -40,7 +42,10 @@ export class BlockNotifier {
         this.stratumServer.broadcastJob(job, true);
       }
     } catch (err: any) {
-      // RPC error (Node might be syncing or offline)
+      if (Date.now() - this.lastErrorLog > 10000) {
+        console.error(`[RPC Error] Failed to fetch block template from Bitcoin Core (${config.rpcHost}:${config.rpcPort}): ${err.message}`);
+        this.lastErrorLog = Date.now();
+      }
     }
   }
 
