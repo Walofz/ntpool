@@ -356,6 +356,7 @@ export class StratumServer extends EventEmitter {
 
     if (!accepted) {
       session.rejectedShares++;
+      console.log(`[Share REJECTED] Worker: ${session.workerName}, Achieved Diff: ${finalShareDiff.toFixed(6)}, Required: ${session.currentDiff}, verBits: ${versionBitsHex}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}`);
       return this.sendResponse(session, id, false, {
         code: 23,
         message: `Low difficulty share (Achieved diff ${finalShareDiff.toFixed(2)} < required ${session.currentDiff})`,
@@ -483,12 +484,19 @@ export class StratumServer extends EventEmitter {
     if (rawBitsNum !== null) {
       // 1. Direct mask apply
       candidates.add(((baseVersion & ~mask) | (rawBitsNum & mask)) >>> 0);
+      candidates.add(((baseVersion & ~mask) | rawBitsNum) >>> 0);
+      candidates.add((baseVersion | rawBitsNum) >>> 0);
+      candidates.add((baseVersion ^ rawBitsNum) >>> 0);
+      candidates.add((baseVersion + rawBitsNum) >>> 0);
 
-      // 2. 32-bit LE/BE byte swap of rawBitsNum (common for Avalon / Canaan miners sending LE versionBits "e0000000")
+      // 2. 32-bit LE/BE byte swap of rawBitsNum
       const buf32 = Buffer.alloc(4);
       buf32.writeUInt32BE(rawBitsNum, 0);
       const swapped32 = buf32.readUInt32LE(0);
       candidates.add(((baseVersion & ~mask) | (swapped32 & mask)) >>> 0);
+      candidates.add(((baseVersion & ~mask) | swapped32) >>> 0);
+      candidates.add((baseVersion | swapped32) >>> 0);
+      candidates.add((baseVersion ^ swapped32) >>> 0);
 
       // 3. 16-bit byte swap of rawBitsNum
       const buf16 = Buffer.alloc(4);
