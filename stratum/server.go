@@ -357,7 +357,6 @@ primaryLoop:
 		s.sendNotification(session, "mining.set_difficulty", []interface{}{newDiff})
 	}
 
-	// CHECK IF THIS SHARE FOUND A NETWORK BLOCK!
 	if finalHashBigInt != nil && finalHashBigInt.Cmp(networkTarget) <= 0 {
 		blockHashHex := hex.EncodeToString(finalHashBE)
 		log.Printf("  [BLOCK FOUND] Miner %s FOUND BLOCK #%d! Hash: %s", session.MinerAddress, job.BlockHeight, blockHashHex)
@@ -462,6 +461,39 @@ func (s *StratumServer) sendJobToSession(session *StratumSession, job *pool.Mini
 	s.sendNotification(session, "mining.notify", params)
 }
 
+// -------------------------------------------------------------------------
+// Helper: สลับไบต์ (Byte Permutations) ให้ครอบคลุมการสลับแบบผิดปกติของ ASIC
+// -------------------------------------------------------------------------
+func (s *StratumServer) getBytePermutations(hexStr string) []string {
+	if len(hexStr)%2 != 0 {
+		return []string{hexStr}
+	}
+
+	candidatesMap := make(map[string]bool)
+	candidatesMap[hexStr] = true
+
+	b, err := hex.DecodeString(hexStr)
+	if err == nil {
+		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b))] = true
+	}
+
+	if len(hexStr) == 8 { // กรณี 4 bytes (8 ตัวอักษร)
+		b0, b1, b2, b3 := hexStr[0:2], hexStr[2:4], hexStr[4:6], hexStr[6:8]
+		candidatesMap[b3+b2+b1+b0] = true // Full Reverse
+		candidatesMap[b2+b3+b0+b1] = true // Word Swap (Avalon)
+		candidatesMap[b1+b0+b3+b2] = true // Byte swap in word (BM1370)
+		candidatesMap[b0+b1+b3+b2] = true
+		candidatesMap[b3+b2+b0+b1] = true
+		candidatesMap[b1+b0+b2+b3] = true
+	}
+
+	var results []string
+	for k := range candidatesMap {
+		results = append(results, k)
+	}
+	return results
+}
+
 func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHex interface{}, sessionMaskHex string) []uint32 {
 	baseVersion64, _ := strconv.ParseUint(jobVersionHex, 16, 32)
 	baseVersion := uint32(baseVersion64)
@@ -491,19 +523,15 @@ func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHe
 		}
 
 		if parsed {
-			candidatesMap[(baseVersion&^mask)|(rawBitsNum&mask)] = true
-			candidatesMap[(baseVersion&^mask)|rawBitsNum] = true
-			candidatesMap[baseVersion|rawBitsNum] = true
-			candidatesMap[baseVersion^rawBitsNum] = true
-
-			buf32 := make([]byte, 4)
-			binary.BigEndian.PutUint32(buf32, rawBitsNum)
-			swapped32 := binary.LittleEndian.Uint32(buf32)
-			candidatesMap[(baseVersion&^mask)|(swapped32&mask)] = true
-
-			// Bitaxe BM1370 Version bits word swap
-			wordSwapped32 := (rawBitsNum >> 16) | (rawBitsNum << 16)
-			candidatesMap[(baseVersion&^mask)|(wordSwapped32&mask)] = true
+			hexStr := fmt.Sprintf("%08x", rawBitsNum)
+			for _, p := range s.getBytePermutations(hexStr) {
+				if pVal64, err := strconv.ParseUint(p, 16, 32); err == nil {
+					pVal := uint32(pVal64)
+					candidatesMap[(baseVersion&^mask)|(pVal&mask)] = true
+					candidatesMap[baseVersion|pVal] = true
+					candidatesMap[baseVersion^pVal] = true
+				}
+			}
 		}
 	}
 
@@ -515,27 +543,23 @@ func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHe
 }
 
 func (s *StratumServer) getExt2Candidates(ext2Hex string, ext2Size int) []string {
-	candidatesMap := map[string]bool{ext2Hex: true}
 	targetLen := ext2Size * 2
-	candidatesMap[fmt.Sprintf("%0*s", targetLen, ext2Hex)] = true // Left pad
+	paddedHex := ext2Hex
+	if len(ext2Hex) < targetLen {
+		paddedHex = fmt.Sprintf("%0*s", targetLen, ext2Hex)
+	}
 
+	candidatesMap := make(map[string]bool)
+	for _, p := range s.getBytePermutations(paddedHex) {
+		candidatesMap[p] = true
+	}
+
+	// เพิ่มแบบต่อ 0 ข้างหลังในกรณี Extranonce2 มาไม่ครบ
 	if len(ext2Hex) < targetLen {
 		rightPadded := ext2Hex + strings.Repeat("0", targetLen-len(ext2Hex))
-		candidatesMap[rightPadded] = true
-	}
-
-	b, err := hex.DecodeString(ext2Hex)
-	if err == nil {
-		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b))] = true
-	}
-
-	if len(ext2Hex) == 8 {
-		wordSwapped := ext2Hex[4:] + ext2Hex[:4]
-		candidatesMap[wordSwapped] = true
-
-		// For Bitaxe Gamma (BM1370) specific SPI byte shift quirks
-		byteSwappedWords := ext2Hex[2:4] + ext2Hex[0:2] + ext2Hex[6:8] + ext2Hex[4:6]
-		candidatesMap[byteSwappedWords] = true
+		for _, p := range s.getBytePermutations(rightPadded) {
+			candidatesMap[p] = true
+		}
 	}
 
 	var candidates []string
@@ -546,29 +570,21 @@ func (s *StratumServer) getExt2Candidates(ext2Hex string, ext2Size int) []string
 }
 
 func (s *StratumServer) getNTimeCandidates(nTimeHex string, jobNTimeHex string) []string {
-	candidatesMap := map[string]bool{nTimeHex: true, jobNTimeHex: true}
+	candidatesMap := make(map[string]bool)
 
-	b1, err1 := hex.DecodeString(nTimeHex)
-	if err1 == nil {
-		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b1))] = true
-	}
-
-	b2, err2 := hex.DecodeString(jobNTimeHex)
-	if err2 == nil {
-		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b2))] = true
-	}
-
-	if len(nTimeHex) == 8 {
-		wordSwapped := nTimeHex[4:] + nTimeHex[:4]
-		candidatesMap[wordSwapped] = true
-	}
-
-	nTimeInt, err := strconv.ParseUint(nTimeHex, 16, 32)
-	if err == nil {
-		for offset := -5; offset <= 5; offset++ {
-			val := uint32(int64(nTimeInt) + int64(offset))
-			candidatesMap[fmt.Sprintf("%08x", val)] = true
+	for _, p := range s.getBytePermutations(nTimeHex) {
+		candidatesMap[p] = true
+		// รองรับการ Rolling เวลา (nTime) ของแต่ละรูปแบบ
+		if pInt, err := strconv.ParseUint(p, 16, 32); err == nil {
+			for offset := -5; offset <= 5; offset++ {
+				val := uint32(int64(pInt) + int64(offset))
+				candidatesMap[fmt.Sprintf("%08x", val)] = true
+			}
 		}
+	}
+
+	for _, p := range s.getBytePermutations(jobNTimeHex) {
+		candidatesMap[p] = true
 	}
 
 	var candidates []string
@@ -580,28 +596,10 @@ func (s *StratumServer) getNTimeCandidates(nTimeHex string, jobNTimeHex string) 
 
 func (s *StratumServer) getNonceCandidates(nonceHex string) []string {
 	padded := fmt.Sprintf("%08s", nonceHex)
-	candidatesMap := map[string]bool{padded: true, nonceHex: true}
+	candidatesMap := make(map[string]bool)
 
-	if b, err := hex.DecodeString(padded); err == nil {
-		// Full Reverse (Little/Big Endian swap)
-		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b))] = true
-	}
-
-	if len(padded) == 8 {
-		// 16-bit word swap (first 2 bytes <-> last 2 bytes) for Avalon Nano 3 / Canaan
-		wordSwapped := padded[4:] + padded[:4]
-		candidatesMap[wordSwapped] = true
-
-		if wsBytes, err := hex.DecodeString(wordSwapped); err == nil {
-			candidatesMap[hex.EncodeToString(crypto.ReverseBytes(wsBytes))] = true
-		}
-
-		// Byte-swapped within words for BM1370 (Gamma) specific quirks
-		byteSwappedWords := padded[2:4] + padded[0:2] + padded[6:8] + padded[4:6]
-		candidatesMap[byteSwappedWords] = true
-		if bwBytes, err := hex.DecodeString(byteSwappedWords); err == nil {
-			candidatesMap[hex.EncodeToString(crypto.ReverseBytes(bwBytes))] = true
-		}
+	for _, p := range s.getBytePermutations(padded) {
+		candidatesMap[p] = true
 	}
 
 	var candidates []string
