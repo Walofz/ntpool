@@ -2,12 +2,11 @@
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
-# Copy module files and resolve dependencies
-COPY go.mod go.sum* ./
-RUN go mod tidy && go mod download
-
-# Copy source code
+# Copy all source files
 COPY . .
+
+# Tidy up modules and download dependencies
+RUN go mod tidy && go mod download
 
 # Build standalone binary
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o ntpool main.go
