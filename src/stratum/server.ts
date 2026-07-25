@@ -356,7 +356,7 @@ export class StratumServer extends EventEmitter {
       this.resetAllBestShares();
 
       const blockHex = this.buildFullBlockHex(finalHeader, coinbaseTxHex, job.txsData);
-      
+
       try {
         const result = await this.bitcoinRpc.submitBlock(blockHex);
         console.log(`[RPC submitblock] Result: ${result === null ? 'SUCCESS (ACCEPTED)' : result}`);
