@@ -144,8 +144,8 @@ export class JobManager {
     this.currentJob = job;
     this.jobMap.set(jobId, job);
 
-    // Keep map small (max 50 jobs)
-    if (this.jobMap.size > 50) {
+    // Keep map of recent jobs (max 200 jobs for seamless job transitions)
+    if (this.jobMap.size > 200) {
       const oldestKey = this.jobMap.keys().next().value;
       if (oldestKey) this.jobMap.delete(oldestKey);
     }
