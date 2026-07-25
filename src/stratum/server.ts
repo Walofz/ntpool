@@ -215,97 +215,74 @@ export class StratumServer extends EventEmitter {
     // Calculate Merkle Root
     const merkleRootBE = calculateMerkleRoot(coinbaseTxIdLE, job.merkleBranchHex);
 
-    // AsicBoost Header Version (matching Go parseVersionBits & calculation)
-    let version = parseInt(job.versionHex, 16);
-    if (versionBitsHex !== undefined && versionBitsHex !== null && versionBitsHex !== '') {
-      let vBits: number | null = null;
-      if (typeof versionBitsHex === 'number') {
-        vBits = versionBitsHex >>> 0;
-      } else if (typeof versionBitsHex === 'string') {
-        const parsed = parseInt(versionBitsHex, 16);
-        if (!isNaN(parsed)) vBits = parsed >>> 0;
-      }
-      if (vBits !== null) {
-        const mask = 0x1fffe000;
-        version = ((version & ~mask) | (vBits & mask)) >>> 0;
-      }
-    }
-
-    // Build 80-byte Block Header (1:1 with Go buildBlockHeader)
-    const header = buildBlockHeader({
-      version,
-      prevHashRawHex: job.prevHashRaw,
-      merkleRootBE,
-      nTimeHex,
-      nBitsHex: job.nBitsHex,
-      nonceHex,
-    });
-
-    const headerHashLE = sha256d(header);
-    const headerHashBE = reverseBuffer(headerHashLE);
-    const hashBigInt = bufferToBigIntBE(headerHashBE);
-
-    const shareDiff = hashToDifficulty(headerHashLE);
+    // Generate version candidates covering AsicBoost (BIP310 / overt AsicBoost / Canaan / LE versionBits)
+    const versionCandidates = this.getVersionCandidates(job.versionHex, versionBitsHex, session.versionRollingMask);
 
     // Targets
     const minerTarget = difficultyToTarget(session.currentDiff);
     const networkTarget = job.targetHex ? bufferToBigIntBE(Buffer.from(job.targetHex, 'hex')) : nbitsToTarget(job.nBitsHex);
 
-    let finalHeader = header;
-    let finalHashLE = headerHashLE;
-    let finalHashBE = headerHashBE;
-    let finalHashBigInt = hashBigInt;
-    let finalShareDiff = shareDiff;
-    let accepted = hashBigInt <= minerTarget;
+    let finalHeader: Buffer = Buffer.alloc(80);
+    let finalHashLE: Buffer = Buffer.alloc(32);
+    let finalHashBE: Buffer = Buffer.alloc(32);
+    let finalHashBigInt = 0n;
+    let finalShareDiff = 0;
+    let accepted = false;
+
+    // Primary Evaluation: Try version candidates with standard coinbase/header assembly
+    for (const ver of versionCandidates) {
+      const header = buildBlockHeader({
+        version: ver,
+        prevHashRawHex: job.prevHashRaw,
+        merkleRootBE,
+        nTimeHex,
+        nBitsHex: job.nBitsHex,
+        nonceHex,
+      });
+      const headerHashLE = sha256d(header);
+      const headerHashBE = reverseBuffer(headerHashLE);
+      const hashBigInt = bufferToBigIntBE(headerHashBE);
+
+      if (hashBigInt <= minerTarget) {
+        finalHeader = header;
+        finalHashLE = headerHashLE;
+        finalHashBE = headerHashBE;
+        finalHashBigInt = hashBigInt;
+        finalShareDiff = hashToDifficulty(headerHashLE);
+        accepted = true;
+        break;
+      }
+
+      // Track last computed diff for logging if rejected
+      if (finalShareDiff === 0) {
+        finalHeader = header;
+        finalHashLE = headerHashLE;
+        finalHashBE = headerHashBE;
+        finalHashBigInt = hashBigInt;
+        finalShareDiff = hashToDifficulty(headerHashLE);
+      }
+    }
 
     // Comprehensive Fallback Search for non-standard ASIC miners (Avalon Nano / Canaan / AsicBoost variations)
     if (!accepted) {
-      const baseVer = parseInt(job.versionHex, 16);
-      const versionCandidates = [version];
-      if (baseVer !== version) versionCandidates.push(baseVer);
-
-      const ext2Candidates = [
-        extranonce2Hex,
-        reverseBuffer(Buffer.from(extranonce2Hex, 'hex')).toString('hex'),
-      ];
-      if (extranonce2Hex.length === 8) {
-        const wordSwapped = extranonce2Hex.substring(4) + extranonce2Hex.substring(0, 4);
-        if (!ext2Candidates.includes(wordSwapped)) ext2Candidates.push(wordSwapped);
-
-        const first2LE = reverseBuffer(Buffer.from(extranonce2Hex.substring(0, 4), 'hex')).toString('hex') + '0000';
-        if (!ext2Candidates.includes(first2LE)) ext2Candidates.push(first2LE);
-
-        const first2Padded = '0000' + reverseBuffer(Buffer.from(extranonce2Hex.substring(0, 4), 'hex')).toString('hex');
-        if (!ext2Candidates.includes(first2Padded)) ext2Candidates.push(first2Padded);
-      }
-
-      const nTimeInt = parseInt(nTimeHex, 16);
-      const nTimeCandidates = [
-        nTimeHex,
-        reverseBuffer(Buffer.from(nTimeHex, 'hex')).toString('hex'),
-      ];
-      if (!isNaN(nTimeInt)) {
-        nTimeCandidates.push((nTimeInt + 1).toString(16).padStart(8, '0'));
-        nTimeCandidates.push((nTimeInt - 1).toString(16).padStart(8, '0'));
-        nTimeCandidates.push((nTimeInt + 2).toString(16).padStart(8, '0'));
-        nTimeCandidates.push((nTimeInt - 2).toString(16).padStart(8, '0'));
-      }
-
-      const nonceCandidates = [
-        nonceHex,
-        reverseBuffer(Buffer.from(nonceHex, 'hex')).toString('hex'),
-      ];
-
+      const ext2Candidates = this.getExt2Candidates(extranonce2Hex, session.extranonce2Size);
+      const nTimeCandidates = this.getNTimeCandidates(nTimeHex, job.nTimeHex);
+      const nonceCandidates = this.getNonceCandidates(nonceHex);
       const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
       const swapVerBECandidates = [false, true];
 
+      // Pre-calculate Merkle Roots for each ext2Candidate
+      const ext2MerkleRoots: Array<{ ext2: string; merkleRootBE: Buffer }> = [];
+      for (const ext2 of ext2Candidates) {
+        const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
+        const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
+        const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
+        ext2MerkleRoots.push({ ext2, merkleRootBE: altMerkleRootBE });
+      }
+
       outer: for (const ver of versionCandidates) {
         for (const swapVer of swapVerBECandidates) {
-          for (const ext2 of ext2Candidates) {
-            const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
-            const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
-            const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
-
+          for (const { ext2, merkleRootBE: altMerkleRootBE } of ext2MerkleRoots) {
             for (const prevH of prevHashCandidates) {
               for (const nt of nTimeCandidates) {
                 for (const non of nonceCandidates) {
@@ -329,6 +306,7 @@ export class StratumServer extends EventEmitter {
                     finalHashBigInt = altHashBigInt;
                     finalShareDiff = hashToDifficulty(altHashLE);
                     accepted = true;
+                    console.log(`[Stratum] Fallback search matched share for worker ${session.workerName}! (ver: ${ver.toString(16)}, ext2: ${ext2}, nTime: ${nt}, nonce: ${non})`);
                     break outer;
                   }
                 }
@@ -440,6 +418,150 @@ export class StratumServer extends EventEmitter {
     ];
 
     this.sendNotification(session, 'mining.notify', params);
+  }
+
+  /**
+   * Calculate all potential version candidates for AsicBoost / Version Rolling
+   */
+  private getVersionCandidates(jobVersionHex: string, versionBitsHex: any, sessionMaskHex?: string): number[] {
+    const baseVersion = parseInt(jobVersionHex, 16) >>> 0;
+    const mask = sessionMaskHex ? parseInt(sessionMaskHex, 16) >>> 0 : 0x1fffe000;
+    const candidates = new Set<number>([baseVersion]);
+
+    if (versionBitsHex === undefined || versionBitsHex === null || versionBitsHex === '') {
+      return Array.from(candidates);
+    }
+
+    let rawBitsNum: number | null = null;
+    if (typeof versionBitsHex === 'number') {
+      rawBitsNum = versionBitsHex >>> 0;
+    } else if (typeof versionBitsHex === 'string') {
+      const parsed = parseInt(versionBitsHex.trim(), 16);
+      if (!isNaN(parsed)) rawBitsNum = parsed >>> 0;
+    }
+
+    if (rawBitsNum !== null) {
+      // 1. Direct mask apply
+      candidates.add(((baseVersion & ~mask) | (rawBitsNum & mask)) >>> 0);
+
+      // 2. 32-bit LE/BE byte swap of rawBitsNum (common for Avalon / Canaan miners sending LE versionBits "e0000000")
+      const buf32 = Buffer.alloc(4);
+      buf32.writeUInt32BE(rawBitsNum, 0);
+      const swapped32 = buf32.readUInt32LE(0);
+      candidates.add(((baseVersion & ~mask) | (swapped32 & mask)) >>> 0);
+
+      // 3. 16-bit byte swap of rawBitsNum
+      const buf16 = Buffer.alloc(4);
+      buf16.writeUInt32LE(rawBitsNum, 0);
+      const swapped16 = buf16.readUInt32BE(0);
+      candidates.add(((baseVersion & ~mask) | (swapped16 & mask)) >>> 0);
+
+      // 4. Shifted left by 13 (if rawBitsNum is unshifted bit field)
+      const shifted13 = (rawBitsNum << 13) >>> 0;
+      candidates.add(((baseVersion & ~mask) | (shifted13 & mask)) >>> 0);
+
+      // 5. Shifted right by 13
+      const shiftedRight13 = (rawBitsNum >>> 13) >>> 0;
+      candidates.add(((baseVersion & ~mask) | (shiftedRight13 & mask)) >>> 0);
+
+      // 6. Raw version bits passed as full version
+      candidates.add(rawBitsNum);
+      candidates.add(swapped32);
+    }
+
+    return Array.from(candidates);
+  }
+
+  /**
+   * Generate potential extranonce2 representations for non-standard ASIC miners (Avalon Nano / Canaan)
+   */
+  private getExt2Candidates(extranonce2Hex: string, extranonce2Size: number): string[] {
+    const candidates = new Set<string>([extranonce2Hex]);
+
+    const targetLen = extranonce2Size * 2;
+    candidates.add(extranonce2Hex.padStart(targetLen, '0'));
+    candidates.add(extranonce2Hex.padEnd(targetLen, '0'));
+
+    try {
+      const buf = Buffer.from(extranonce2Hex, 'hex');
+      candidates.add(reverseBuffer(buf).toString('hex'));
+    } catch (e) {}
+
+    if (extranonce2Hex.length === 8) {
+      // 4 bytes: word swap (first 2 bytes <-> last 2 bytes)
+      const wordSwapped = extranonce2Hex.substring(4) + extranonce2Hex.substring(0, 4);
+      candidates.add(wordSwapped);
+
+      const first2 = extranonce2Hex.substring(0, 4);
+      const last2 = extranonce2Hex.substring(4, 8);
+
+      // Avalon / Canaan specific patterns (e.g. c4ad0000)
+      candidates.add('0000' + first2);
+      candidates.add(first2 + '0000');
+      candidates.add('0000' + last2);
+      candidates.add(last2 + '0000');
+
+      try {
+        const first2Buf = Buffer.from(first2, 'hex');
+        const first2Rev = reverseBuffer(first2Buf).toString('hex');
+        candidates.add('0000' + first2Rev);
+        candidates.add(first2Rev + '0000');
+
+        const last2Buf = Buffer.from(last2, 'hex');
+        const last2Rev = reverseBuffer(last2Buf).toString('hex');
+        candidates.add('0000' + last2Rev);
+        candidates.add(last2Rev + '0000');
+      } catch (e) {}
+    }
+
+    return Array.from(candidates);
+  }
+
+  /**
+   * Generate potential nTime candidates
+   */
+  private getNTimeCandidates(nTimeHex: string, jobNTimeHex: string): string[] {
+    const candidates = new Set<string>([nTimeHex, jobNTimeHex]);
+
+    try {
+      candidates.add(reverseBuffer(Buffer.from(nTimeHex, 'hex')).toString('hex'));
+      candidates.add(reverseBuffer(Buffer.from(jobNTimeHex, 'hex')).toString('hex'));
+    } catch (e) {}
+
+    const nTimeInt = parseInt(nTimeHex, 16);
+    if (!isNaN(nTimeInt)) {
+      for (let offset = -5; offset <= 5; offset++) {
+        if (offset === 0) continue;
+        const val = (nTimeInt + offset) >>> 0;
+        candidates.add(val.toString(16).padStart(8, '0'));
+      }
+    }
+
+    const jobNTimeInt = parseInt(jobNTimeHex, 16);
+    if (!isNaN(jobNTimeInt)) {
+      for (let offset = -5; offset <= 5; offset++) {
+        if (offset === 0) continue;
+        const val = (jobNTimeInt + offset) >>> 0;
+        candidates.add(val.toString(16).padStart(8, '0'));
+      }
+    }
+
+    return Array.from(candidates);
+  }
+
+  /**
+   * Generate potential Nonce candidates
+   */
+  private getNonceCandidates(nonceHex: string): string[] {
+    const padded = nonceHex.padStart(8, '0');
+    const candidates = new Set<string>([padded, nonceHex]);
+
+    try {
+      const buf = Buffer.from(padded, 'hex');
+      candidates.add(reverseBuffer(buf).toString('hex'));
+    } catch (e) {}
+
+    return Array.from(candidates);
   }
 
   public getActiveSessions(): StratumSession[] {
