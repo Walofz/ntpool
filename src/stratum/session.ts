@@ -87,7 +87,6 @@ export class StratumSession {
 
   /**
    * Compute new difficulty based on share submission rate (target ~12 shares / min)
-   * Uses 45-second cooldown and gentle 15% step limits for maximum stability
    */
   private calculateVardiff(now: number): number | null {
     if (!config.enableVardiff) return null;
@@ -96,27 +95,40 @@ export class StratumSession {
     const newest = this.shareHistory[this.shareHistory.length - 1];
     const timeDeltaSec = (newest.timestamp - oldest.timestamp) / 1000;
 
-    // Must have at least 30 seconds of share history
-    if (timeDeltaSec < 30) return null;
+    if (timeDeltaSec < 15) return null;
 
     const sharesPerMin = (this.shareHistory.length / timeDeltaSec) * 60;
     const targetRate = config.vardiffTargetShares || 12; // 12 shares/min
 
     let ratio = sharesPerMin / targetRate;
 
-    // Only adjust if submission rate is significantly off (< 0.6x or > 1.6x)
-    if (ratio < 0.6 || ratio > 1.6) {
-      // Gentle step limit: max +/- 15% adjustment per 45s retarget
-      ratio = Math.max(0.85, Math.min(1.15, ratio));
-      let newDiff = Math.round(this.currentDiff * ratio);
-      newDiff = Math.max(config.minDiff, Math.min(config.maxDiff, newDiff));
-
-      if (Math.abs(newDiff - this.currentDiff) >= 32) {
-        this.currentDiff = newDiff;
-        this.lastVardiffTime = now;
-        return newDiff;
-      }
+    // Fast initial retarget if submission rate is way off (< 0.4x or > 2.5x)
+    if (ratio < 0.4 || ratio > 2.5) {
+      ratio = Math.max(0.1, Math.min(10.0, ratio));
+    } else if (ratio < 0.7 || ratio > 1.4) {
+      ratio = Math.max(0.5, Math.min(2.0, ratio));
+    } else {
+      return null;
     }
+
+    let newDiff = this.currentDiff * ratio;
+
+    if (newDiff < 1) {
+      newDiff = parseFloat(newDiff.toFixed(4));
+    } else if (newDiff < 64) {
+      newDiff = Math.round(newDiff);
+    } else {
+      newDiff = Math.round(newDiff / 16) * 16;
+    }
+
+    newDiff = Math.max(config.minDiff, Math.min(config.maxDiff, newDiff));
+
+    if (Math.abs(newDiff - this.currentDiff) >= 0.0001 && newDiff !== this.currentDiff) {
+      this.currentDiff = newDiff;
+      this.lastVardiffTime = now;
+      return newDiff;
+    }
+
     return null;
   }
 

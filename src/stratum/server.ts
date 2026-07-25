@@ -158,12 +158,28 @@ export class StratumServer extends EventEmitter {
       case 'mining.extranonce.subscribe':
       case 'mining.suggest_difficulty':
       case 'mining.suggest_target':
+        this.handleSuggestDifficulty(session, id, params);
+        break;
+      case 'mining.extranonce.subscribe':
         this.sendResponse(session, id, true);
         break;
       default:
         this.sendResponse(session, id, null, { code: -32601, message: 'Method not found' });
         break;
     }
+  }
+
+  /**
+   * Handle mining.suggest_difficulty
+   */
+  private handleSuggestDifficulty(session: StratumSession, id: any, params: any[]): void {
+    const suggested = parseFloat(params[0]);
+    if (!isNaN(suggested) && suggested > 0) {
+      const clamped = Math.max(config.minDiff, Math.min(config.maxDiff, suggested));
+      session.currentDiff = clamped;
+      this.sendNotification(session, 'mining.set_difficulty', [session.currentDiff]);
+    }
+    this.sendResponse(session, id, true);
   }
 
   /**
@@ -209,10 +225,22 @@ export class StratumServer extends EventEmitter {
    */
   private handleAuthorize(session: StratumSession, id: any, params: any[]): void {
     const fullUser = params[0] || 'unknown';
+    const password = params[1] || '';
+
     const userParts = fullUser.split('.');
     session.minerAddress = userParts[0];
     session.workerName = userParts[1] || 'default';
     session.isAuthorized = true;
+
+    // Check for custom difficulty request (e.g. d=1 or d=64 or d=512 in password/user)
+    const diffMatch = (fullUser + ' ' + password).match(/(?:^|[\s,;+])d=([0-9.]+)/i);
+    if (diffMatch && diffMatch[1]) {
+      const requestedDiff = parseFloat(diffMatch[1]);
+      if (!isNaN(requestedDiff) && requestedDiff > 0) {
+        session.currentDiff = Math.max(config.minDiff, Math.min(config.maxDiff, requestedDiff));
+        this.sendNotification(session, 'mining.set_difficulty', [session.currentDiff]);
+      }
+    }
 
     this.sendResponse(session, id, true);
     this.emit('stats_updated');
@@ -315,8 +343,11 @@ export class StratumServer extends EventEmitter {
       }
     }
 
-    // Comprehensive Fallback Search for non-standard ASIC & ESP32 miners (Avalon Nano / NerdMiner / LuckyMiner)
-    if (!accepted) {
+    // High-Performance CPU Guard: Only run heavy fallback search if primary evaluation difficulty is close to required difficulty (>= 10% of currentDiff or >= 1.0)
+    // This prevents low-difficulty shares (e.g. diff 0.00001) from triggering heavy candidate loops and spiking CPU.
+    const fallbackThreshold = Math.max(1.0, session.currentDiff * 0.1);
+
+    if (!accepted && finalShareDiff >= fallbackThreshold) {
       const ext2Candidates = this.getExt2Candidates(extranonce2Hex, session.extranonce2Size);
       const nTimeCandidates = this.getNTimeCandidates(nTimeHex, job.nTimeHex);
       const nonceCandidates = this.getNonceCandidates(nonceHex);
