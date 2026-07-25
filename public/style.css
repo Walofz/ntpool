@@ -194,47 +194,6 @@ body {
   white-space: nowrap;
 }
 
-.search-section h3 {
-  font-size: 1.1rem;
-  margin-bottom: 1rem;
-}
-
-.search-box {
-  display: flex;
-  gap: 1rem;
-}
-
-.search-box input {
-  flex: 1;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.8rem 1.2rem;
-  color: var(--text-main);
-  font-family: 'Space Mono', monospace;
-  font-size: 0.95rem;
-  outline: none;
-}
-
-.search-box input:focus {
-  border-color: var(--accent-cyan);
-}
-
-.search-box button {
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-  border: none;
-  border-radius: 8px;
-  padding: 0 1.8rem;
-  color: #000;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.search-box button:hover {
-  opacity: 0.9;
-}
-
 .content-split {
   display: grid;
   grid-template-columns: 2fr 1fr;

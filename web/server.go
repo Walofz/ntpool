@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -34,9 +36,49 @@ func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumSer
 		jobManager:    jm,
 		clients:       make(map[*websocket.Conn]bool),
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true
+				}
+
+				u, err := url.Parse(origin)
+				if err != nil {
+					return false
+				}
+
+				return strings.EqualFold(u.Host, r.Host)
+			},
 		},
 	}
+}
+
+func isLANClient(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+
+	ip := net.ParseIP(strings.TrimSpace(host))
+	if ip == nil {
+		return false
+	}
+
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+		return true
+	}
+
+	return false
+}
+
+func lanOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if !isLANClient(r.RemoteAddr) {
+			http.Error(rw, "forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
@@ -123,14 +165,15 @@ func (w *WebDashboardServer) startBroadcaster() {
 }
 
 func (w *WebDashboardServer) Start() error {
-	http.Handle("/", http.FileServer(http.Dir("./public")))
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.Dir("./public")))
 
-	http.HandleFunc("/api/stats", func(rw http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/stats", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(w.calculatePoolStats())
 	})
 
-	http.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		conn, err := w.upgrader.Upgrade(rw, r, nil)
 		if err != nil {
 			return
@@ -161,6 +204,6 @@ func (w *WebDashboardServer) Start() error {
 	go w.startBroadcaster()
 
 	addr := fmt.Sprintf(":%d", w.cfg.WebPort)
-	log.Printf("[Web Dashboard Go] Server running at http://localhost:%d", w.cfg.WebPort)
-	return http.ListenAndServe(addr, nil)
+	log.Printf("[Web Dashboard Go] Server running on LAN at http://<LAN_IP>:%d", w.cfg.WebPort)
+	return http.ListenAndServe(addr, lanOnly(mux))
 }

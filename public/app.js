@@ -70,11 +70,6 @@ function updateDashboard(data) {
   // Render Blocks Mined
   const blocksList = document.getElementById('blocks-list');
   const coinSymbol = data.coinSymbol || 'BTC';
-  const addressInput = document.getElementById('address-input');
-  if (addressInput && !addressInput.dataset.updated) {
-    addressInput.placeholder = `Enter ${coinSymbol} Payout Address`;
-    addressInput.dataset.updated = "true";
-  }
 
   if (!data.blocksFound || data.blocksFound.length === 0) {
     blocksList.innerHTML = `<div class="empty-state">No solo blocks found yet. Keep hashing!</div>`;
@@ -91,42 +86,6 @@ function updateDashboard(data) {
     `).join('');
   }
 }
-
-// Search Miner Address
-document.getElementById('search-btn').addEventListener('click', async () => {
-  const addr = document.getElementById('address-input').value.trim();
-  const container = document.getElementById('miner-result');
-
-  if (!addr) {
-    container.classList.add('hidden');
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/miner/${encodeURIComponent(addr)}`);
-    if (!res.ok) {
-      container.innerHTML = `<div style="color:#ff5252; padding:0.5rem 0;">Miner address not found or currently offline.</div>`;
-      container.classList.remove('hidden');
-      return;
-    }
-
-    const miner = await res.json();
-    container.innerHTML = `
-      <div style="background:rgba(0,242,254,0.05); padding:1rem; border-radius:8px; border:1px solid rgba(0,242,254,0.2); margin-top:1rem;">
-        <h4 style="color:var(--accent-cyan);">Miner: ${miner.address}</h4>
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:1rem; margin-top:0.8rem;">
-          <div><span style="color:#8a99ad; font-size:0.8rem;">Workers:</span> <strong>${miner.workerCount}</strong></div>
-          <div><span style="color:#8a99ad; font-size:0.8rem;">Hashrate (1m):</span> <strong>${formatHashrate(miner.hashrate1m)}</strong></div>
-          <div><span style="color:#8a99ad; font-size:0.8rem;">Accepted Shares:</span> <strong>${miner.totalAccepted}</strong></div>
-          <div><span style="color:#8a99ad; font-size:0.8rem;">Best Share Diff:</span> <strong>${miner.bestShareDiff.toFixed(1)}</strong></div>
-        </div>
-      </div>
-    `;
-    container.classList.remove('hidden');
-  } catch (e) {
-    console.error(e);
-  }
-});
 
 // Initialize
 initWebSocket();

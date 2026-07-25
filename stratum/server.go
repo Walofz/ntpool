@@ -546,7 +546,7 @@ func (s *StratumServer) getExt2Candidates(ext2Hex string, ext2Size int) []string
 	targetLen := ext2Size * 2
 	paddedHex := ext2Hex
 	if len(ext2Hex) < targetLen {
-		paddedHex = fmt.Sprintf("%0*s", targetLen, ext2Hex)
+		paddedHex = strings.Repeat("0", targetLen-len(ext2Hex)) + ext2Hex
 	}
 
 	candidatesMap := make(map[string]bool)
@@ -595,7 +595,10 @@ func (s *StratumServer) getNTimeCandidates(nTimeHex string, jobNTimeHex string) 
 }
 
 func (s *StratumServer) getNonceCandidates(nonceHex string) []string {
-	padded := fmt.Sprintf("%08s", nonceHex)
+	padded := nonceHex
+	if len(nonceHex) < 8 {
+		padded = strings.Repeat("0", 8-len(nonceHex)) + nonceHex
+	}
 	candidatesMap := make(map[string]bool)
 
 	for _, p := range s.getBytePermutations(padded) {

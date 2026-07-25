@@ -3,6 +3,7 @@ package pool
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -189,13 +190,23 @@ func (jm *JobManager) CreateJob(template map[string]interface{}) *MiningJob {
 	jm.currentJob = job
 	jm.jobMap[jobId] = job
 
-	if len(jm.jobMap) > 200 {
+	for len(jm.jobMap) > 200 {
+		oldestID := ""
+		oldestCounter := int64(1<<63 - 1)
+
 		for k := range jm.jobMap {
-			delete(jm.jobMap, k)
-			if len(jm.jobMap) <= 200 {
-				break
+			if n, err := strconv.ParseInt(k, 16, 64); err == nil {
+				if n < oldestCounter {
+					oldestCounter = n
+					oldestID = k
+				}
 			}
 		}
+
+		if oldestID == "" {
+			break
+		}
+		delete(jm.jobMap, oldestID)
 	}
 
 	return job
