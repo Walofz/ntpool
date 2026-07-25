@@ -120,11 +120,16 @@ export function buildBlockHeader(params: {
   nTimeHex: string;
   nBitsHex: string;
   nonceHex: string;
+  swapVersionBE?: boolean;
 }): Buffer {
   const header = Buffer.alloc(80);
 
-  // 1. Version (4 bytes LE)
-  header.writeUInt32LE(params.version >>> 0, 0);
+  // 1. Version (4 bytes LE or BE)
+  if (params.swapVersionBE) {
+    header.writeUInt32BE(params.version >>> 0, 0);
+  } else {
+    header.writeUInt32LE(params.version >>> 0, 0);
+  }
 
   // 2. PrevHash (32 bytes reversed)
   reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex')).copy(header, 4);

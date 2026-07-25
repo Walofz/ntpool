@@ -281,6 +281,8 @@ export class StratumServer extends EventEmitter {
       if (!isNaN(nTimeInt)) {
         nTimeCandidates.push((nTimeInt + 1).toString(16).padStart(8, '0'));
         nTimeCandidates.push((nTimeInt - 1).toString(16).padStart(8, '0'));
+        nTimeCandidates.push((nTimeInt + 2).toString(16).padStart(8, '0'));
+        nTimeCandidates.push((nTimeInt - 2).toString(16).padStart(8, '0'));
       }
 
       const nonceCandidates = [
@@ -289,36 +291,40 @@ export class StratumServer extends EventEmitter {
       ];
 
       const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
+      const swapVerBECandidates = [false, true];
 
       outer: for (const ver of versionCandidates) {
-        for (const ext2 of ext2Candidates) {
-          const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
-          const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
-          const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
+        for (const swapVer of swapVerBECandidates) {
+          for (const ext2 of ext2Candidates) {
+            const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
+            const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
+            const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
 
-          for (const prevH of prevHashCandidates) {
-            for (const nt of nTimeCandidates) {
-              for (const non of nonceCandidates) {
-                const altHeader = buildBlockHeader({
-                  version: ver,
-                  prevHashRawHex: prevH,
-                  merkleRootBE: altMerkleRootBE,
-                  nTimeHex: nt,
-                  nBitsHex: job.nBitsHex,
-                  nonceHex: non,
-                });
-                const altHashLE = sha256d(altHeader);
-                const altHashBE = reverseBuffer(altHashLE);
-                const altHashBigInt = bufferToBigIntBE(altHashBE);
+            for (const prevH of prevHashCandidates) {
+              for (const nt of nTimeCandidates) {
+                for (const non of nonceCandidates) {
+                  const altHeader = buildBlockHeader({
+                    version: ver,
+                    prevHashRawHex: prevH,
+                    merkleRootBE: altMerkleRootBE,
+                    nTimeHex: nt,
+                    nBitsHex: job.nBitsHex,
+                    nonceHex: non,
+                    swapVersionBE: swapVer,
+                  });
+                  const altHashLE = sha256d(altHeader);
+                  const altHashBE = reverseBuffer(altHashLE);
+                  const altHashBigInt = bufferToBigIntBE(altHashBE);
 
-                if (altHashBigInt <= minerTarget) {
-                  finalHeader = altHeader;
-                  finalHashLE = altHashLE;
-                  finalHashBE = altHashBE;
-                  finalHashBigInt = altHashBigInt;
-                  finalShareDiff = hashToDifficulty(altHashLE);
-                  accepted = true;
-                  break outer;
+                  if (altHashBigInt <= minerTarget) {
+                    finalHeader = altHeader;
+                    finalHashLE = altHashLE;
+                    finalHashBE = altHashBE;
+                    finalHashBigInt = altHashBigInt;
+                    finalShareDiff = hashToDifficulty(altHashLE);
+                    accepted = true;
+                    break outer;
+                  }
                 }
               }
             }
