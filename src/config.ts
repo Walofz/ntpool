@@ -29,8 +29,8 @@ export interface PoolConfig {
 export const config: PoolConfig = {
   stratumPort: parseInt(process.env.STRATUM_PORT || '3333', 10),
   webPort: parseInt(process.env.WEB_PORT || '8080', 10),
-  defaultDiff: parseFloat(process.env.DEFAULT_DIFF || '4096'),
-  minDiff: parseFloat(process.env.MIN_DIFF || '4096'),
+  defaultDiff: parseFloat(process.env.DEFAULT_DIFF || '1'),
+  minDiff: parseFloat(process.env.MIN_DIFF || '0.0001'),
   maxDiff: parseFloat(process.env.MAX_DIFF || '1048576'),
   vardiffTargetShares: parseInt(process.env.VARDIFF_TARGET_SHARES || '12', 10),
   rpcHost: process.env.RPC_HOST || '127.0.0.1',
@@ -46,5 +46,5 @@ export const config: PoolConfig = {
   poolFeePercent: parseFloat(process.env.POOL_FEE_PERCENT || '0.0'),
   poolFeeAddress: process.env.POOL_FEE_ADDRESS || '',
   walletAddress: process.env.WALLET_ADDRESS || 'AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr',
-  enableVardiff: process.env.ENABLE_VARDIFF === 'true' || process.env.ENABLE_VARDIFF === '1',
+  enableVardiff: process.env.ENABLE_VARDIFF !== 'false' && process.env.ENABLE_VARDIFF !== '0',
 };

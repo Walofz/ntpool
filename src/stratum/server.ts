@@ -354,8 +354,8 @@ export class StratumServer extends EventEmitter {
       }
     }
 
-    // High-Performance Fallback Search (only for candidates close to required target)
-    if (!accepted && finalShareDiff >= session.currentDiff * 0.1) {
+    // High-Performance Fallback Search (for candidates needing version/ext2 byte swap or close to required target)
+    if (!accepted && (finalShareDiff === 0 || finalShareDiff >= session.currentDiff * 0.1)) {
       const nTimeCandidates = this.getNTimeCandidates(nTimeHex, job.nTimeHex);
       const nonceCandidates = this.getNonceCandidates(nonceHex);
       const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
