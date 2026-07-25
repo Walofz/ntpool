@@ -263,7 +263,7 @@ export class StratumServer extends EventEmitter {
     console.log(`[Share ACCEPTED] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(2)}, Required Diff: ${session.currentDiff}`);
 
     // ACCEPTED SHARE!
-    const newDiff = session.recordShare(shareDiff);
+    const newDiff = session.recordShare(session.currentDiff, shareDiff);
     this.sendResponse(session, id, true);
     this.emit('stats_updated');
 

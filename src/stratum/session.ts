@@ -51,23 +51,28 @@ export class StratumSession {
   /**
    * Record share for Vardiff calculation
    */
-  public recordShare(diff: number): number | null {
+  /**
+   * Record share for Vardiff calculation and hashrate tracking
+   */
+  public recordShare(targetDiff: number, shareDiff?: number): number | null {
     const now = Date.now();
     this.acceptedShares++;
     this.lastShareTime = new Date();
 
-    if (diff > this.bestShareDiff) {
-      this.bestShareDiff = diff;
+    const best = shareDiff || targetDiff;
+    if (best > this.bestShareDiff) {
+      this.bestShareDiff = best;
     }
 
-    this.shareHistory.push({ timestamp: now, diff });
+    // Store assigned target diff for hashrate calculation
+    this.shareHistory.push({ timestamp: now, diff: targetDiff });
 
     // Keep last 10 minutes of shares
     const tenMinAgo = now - 600000;
     this.shareHistory = this.shareHistory.filter((s) => s.timestamp >= tenMinAgo);
 
-    // Calculate Vardiff adjustment every 10 shares
-    if (this.shareHistory.length >= 10 && this.shareHistory.length % 5 === 0) {
+    // Calculate Vardiff adjustment every 5 shares
+    if (this.shareHistory.length >= 5 && this.shareHistory.length % 5 === 0) {
       return this.calculateVardiff();
     }
 
@@ -117,10 +122,14 @@ export class StratumSession {
     let totalDiff = 0;
     for (const s of recent) totalDiff += s.diff;
 
-    // 1 diff share = 2^32 hashes
+    // Elapsed duration within window
+    const oldestTimestamp = recent[0].timestamp;
+    const elapsedSec = Math.max(1, (now - oldestTimestamp) / 1000);
+    const durationSec = Math.min(windowMs / 1000, elapsedSec);
+
+    // 1 diff share = 2^32 hashes (4,294,967,296)
     const totalHashes = totalDiff * Math.pow(2, 32);
-    const durationSec = windowMs / 1000;
-    return totalHashes / durationSec;
+    return totalHashes / Math.max(10, durationSec);
   }
 
   public getStats(): MinerStats {

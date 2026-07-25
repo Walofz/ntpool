@@ -174,15 +174,13 @@ body {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .stat-meta .stat-value {
   font-size: 1.8rem;
   font-weight: 700;
-  margin-top: 0.2rem;
-  background: linear-gradient(135deg, #ffffff, #cce0ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  line-height: 1.2;
 }
 
 .search-section h3 {
@@ -255,12 +253,14 @@ th {
   color: var(--text-muted);
   text-transform: uppercase;
   border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
 }
 
 td {
   padding: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 
 .mono {

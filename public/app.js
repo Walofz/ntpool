@@ -61,7 +61,7 @@ function updateDashboard(data) {
         <td><strong>${w.workerName}</strong></td>
         <td class="mono">${w.difficulty}</td>
         <td class="mono">${formatHashrate(w.hashrate1m)}</td>
-        <td class="mono">${w.bestShareDiff ? w.bestShareDiff.toFixed(1) : 0}</td>
+        <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
         <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
       </tr>
     `).join('');
