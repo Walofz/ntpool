@@ -1,0 +1,37 @@
+{
+  "name": "ntpool",
+  "version": "1.0.0",
+  "description": "High-performance SHA-256 Solo Mining Pool (CKPool style) with AsicBoost & Web Dashboard",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "simulator:node": "ts-node src/simulator/mock_node.ts",
+    "simulator:miner": "ts-node src/simulator/stratum_miner.ts"
+  },
+  "keywords": [
+    "bitcoin",
+    "sha256",
+    "solo-pool",
+    "ckpool",
+    "asicboost",
+    "stratum",
+    "mining"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.9",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.5.2"
+  }
+}
