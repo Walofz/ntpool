@@ -205,13 +205,16 @@ export class StratumServer extends EventEmitter {
       return this.sendResponse(session, id, false, { code: 21, message: 'Stale / Job not found' });
     }
 
+    const extranonce1Size = session.extranonce1 ? Math.floor(session.extranonce1.length / 2) : 4;
+    const extranonce2Size = extranonce2Hex ? Math.floor(extranonce2Hex.length / 2) : session.extranonce2Size;
+
     // 1. Build Coinbase Tx for this miner
     const coinbase = buildCoinbaseTransaction({
       blockHeight: job.blockHeight,
       coinbaseValue: job.coinbaseValue,
       minerAddress: session.minerAddress,
-      extranonce1Size: 4,
-      extranonce2Size: session.extranonce2Size,
+      extranonce1Size,
+      extranonce2Size,
       defaultWitnessCommitment: job.defaultWitnessCommitment,
     });
 
@@ -225,12 +228,17 @@ export class StratumServer extends EventEmitter {
     // 2. Calculate Merkle Root
     const merkleRootBE = calculateMerkleRoot(coinbaseTxIdLE, job.merkleBranchHex);
 
-    // 3. AsicBoost Header Version
-    const version = calculateAsicBoostVersion(
+    // 3. AsicBoost Header Version (try both base version and bitwise version)
+    const asicboostVersion = calculateAsicBoostVersion(
       job.versionHex,
       versionBitsHex,
       session.versionRollingMask
     );
+    const baseVersion = parseInt(job.versionHex, 16);
+    const versionList = [asicboostVersion];
+    if (baseVersion !== asicboostVersion) {
+      versionList.push(baseVersion);
+    }
 
     // 4. Targets & Multi-pass Header Endianness Verification
     const minerTarget = difficultyToTarget(session.currentDiff);
@@ -244,7 +252,7 @@ export class StratumServer extends EventEmitter {
     ];
 
     let bestHeader = buildBlockHeader({
-      version,
+      version: versionList[0],
       prevHashRawHex: job.prevHashRaw,
       merkleRootBE,
       nTimeHex,
@@ -256,37 +264,43 @@ export class StratumServer extends EventEmitter {
     let bestHashBigInt = bufferToBigIntBE(bestHashBE);
     let bestShareDiff = hashToDifficulty(bestHashLE);
 
-    for (const combo of combinations) {
-      const h = buildBlockHeader({
-        version,
-        prevHashRawHex: job.prevHashRaw,
-        merkleRootBE,
-        nTimeHex,
-        nBitsHex: job.nBitsHex,
-        nonceHex,
-        swapNonceByteOrder: combo.swapNonce,
-        swapNtimeByteOrder: combo.swapNtime,
-      });
-      const hLE = sha256d(h);
-      const hBE = reverseBuffer(hLE);
-      const hBigInt = bufferToBigIntBE(hBE);
-      const diff = hashToDifficulty(hLE);
+    let accepted = false;
 
-      if (hBigInt <= minerTarget) {
-        bestHeader = h;
-        bestHashLE = hLE;
-        bestHashBE = hBE;
-        bestHashBigInt = hBigInt;
-        bestShareDiff = diff;
-        break;
-      }
+    for (const ver of versionList) {
+      if (accepted) break;
+      for (const combo of combinations) {
+        const h = buildBlockHeader({
+          version: ver,
+          prevHashRawHex: job.prevHashRaw,
+          merkleRootBE,
+          nTimeHex,
+          nBitsHex: job.nBitsHex,
+          nonceHex,
+          swapNonceByteOrder: combo.swapNonce,
+          swapNtimeByteOrder: combo.swapNtime,
+        });
+        const hLE = sha256d(h);
+        const hBE = reverseBuffer(hLE);
+        const hBigInt = bufferToBigIntBE(hBE);
+        const diff = hashToDifficulty(hLE);
 
-      if (diff > bestShareDiff) {
-        bestHeader = h;
-        bestHashLE = hLE;
-        bestHashBE = hBE;
-        bestHashBigInt = hBigInt;
-        bestShareDiff = diff;
+        if (hBigInt <= minerTarget) {
+          bestHeader = h;
+          bestHashLE = hLE;
+          bestHashBE = hBE;
+          bestHashBigInt = hBigInt;
+          bestShareDiff = diff;
+          accepted = true;
+          break;
+        }
+
+        if (diff > bestShareDiff) {
+          bestHeader = h;
+          bestHashLE = hLE;
+          bestHashBE = hBE;
+          bestHashBigInt = hBigInt;
+          bestShareDiff = diff;
+        }
       }
     }
 
