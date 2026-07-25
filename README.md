@@ -142,42 +142,6 @@ docker run -d \
 
 ---
 
-## 🐙 Push Code to Gitea Self-Hosted Server
-
-หากต้องการนำซอร์สโค้ดนี้ขึ้นเก็บไว้ใน **Gitea Self-Hosted** ของคุณ ให้ทำตามขั้นตอนดังนี้:
-
-### 1. สร้าง Repository ใหม่บน Gitea
-- เข้าสู่ระบบ Gitea Web Interface
-- คลิกปุ่ม **+** (New Repository)
-- ตั้งชื่อ Repository ว่า `ntpool`
-- คลิก **Create Repository** (ไม่ต้องเลือก Initialize Repository ด้วย README/.gitignore เพราะในโปรเจกต์มีเรียบร้อยแล้ว)
-
-### 2. Initialize Git Local & Push ขึ้น Gitea
-
-เปิด Terminal ในโฟลเดอร์โปรเจกต์แล้วรันคำสั่ง:
-
-```bash
-# 1. Initialize Git repository
-git init
-
-# 2. Add ทั้งหมดเข้า Git Index (จะละเว้น node_modules, dist, .env ตาม .gitignore)
-git add .
-
-# 3. Commit ไฟล์ทั้งหมด
-git commit -m "Initial commit: ntpool with Docker and Gitea configuration"
-
-# 4. เปลี่ยนชื่อ Branch หลักเป็น main (ถ้ายังไม่ได้เปลี่ยน)
-git branch -M main
-
-# 5. เพิ่ม Gitea Remote URL (เปลี่ยน URL ตามเครื่อง Gitea Server ของคุณ)
-git remote add origin http://<YOUR_GITEA_HOST>:<PORT>/<USERNAME>/ntpool.git
-
-# 6. Push ซอร์สโค้ดขึ้น Gitea Repository
-git push -u origin main
-```
-
----
-
 ## 📄 License
 
 MIT License
