@@ -23,6 +23,8 @@ import (
 	"ntpool/pool"
 )
 
+const vardiffSubmitGraceWindow = 15 * time.Second
+
 type FoundBlock struct {
 	Height    int64     `json:"height"`
 	Hash      string    `json:"hash"`
@@ -264,11 +266,13 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 	job := s.jobManager.GetJob(jobId)
 	if job == nil {
 		session.RejectedShares++
+		log.Printf("[Share REJECTED] Worker: %s, Reason: stale job, JobID: %s", session.WorkerName, jobId)
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 21, "message": "Stale / Job not found"})
 		return
 	}
 
-	minerTarget := crypto.DifficultyToTarget(session.CurrentDiff)
+	requiredDiff, currentDiff := session.EffectiveSubmitDiff(vardiffSubmitGraceWindow)
+	minerTarget := crypto.DifficultyToTarget(requiredDiff)
 	networkTarget := crypto.NbitsToTarget(job.NBitsHex)
 
 	if job.TargetHex != "" {
@@ -344,16 +348,17 @@ primaryLoop:
 
 	if !accepted {
 		session.RejectedShares++
+		log.Printf("[Share REJECTED] Worker: %s, Reason: low diff, Achieved: %.2f, Required: %.2f (Current: %.2f)", session.WorkerName, finalShareDiff, requiredDiff, currentDiff)
 		s.sendResponse(session, id, false, map[string]interface{}{
 			"code":    23,
-			"message": fmt.Sprintf("Low difficulty share (Achieved diff %.2f < required %.2f)", finalShareDiff, session.CurrentDiff),
+			"message": fmt.Sprintf("Low difficulty share (Achieved diff %.2f < required %.2f)", finalShareDiff, requiredDiff),
 		})
 		return
 	}
 
-	log.Printf("[Share ACCEPTED] Worker: %s, Achieved Diff: %.2f, Required Diff: %.2f", session.WorkerName, finalShareDiff, session.CurrentDiff)
+	log.Printf("[Share ACCEPTED] Worker: %s, Achieved Diff: %.2f, Required Diff: %.2f (Current: %.2f)", session.WorkerName, finalShareDiff, requiredDiff, currentDiff)
 
-	newDiff, diffChanged := session.RecordShare(s.cfg, session.CurrentDiff, finalShareDiff)
+	newDiff, diffChanged := session.RecordShare(s.cfg, requiredDiff, finalShareDiff)
 
 	s.sendResponse(session, id, true, nil)
 	s.notifyStats()

@@ -28,6 +28,7 @@ type StratumSession struct {
 	WorkerName            string
 	VersionRollingEnabled bool
 	VersionRollingMask    string
+	PreviousDiff          float64
 	CurrentDiff           float64
 	AcceptedShares        int64
 	RejectedShares        int64
@@ -35,6 +36,7 @@ type StratumSession struct {
 	ConnectedAt           time.Time
 	LastShareTime         time.Time
 	ShareHistory          []ShareHistory
+	LastDiffChangeTime    time.Time
 	LastVardiffTime       time.Time
 }
 
@@ -53,8 +55,10 @@ func NewStratumSession(id string, conn net.Conn, extranonce1 string, defaultDiff
 		Extranonce1:        extranonce1,
 		Extranonce2Size:    4,
 		VersionRollingMask: "1fffe000",
+		PreviousDiff:       defaultDiff,
 		CurrentDiff:        defaultDiff,
 		ConnectedAt:        time.Now(),
+		LastDiffChangeTime: time.Now(),
 		LastVardiffTime:    time.Now(),
 	}
 }
@@ -123,7 +127,11 @@ func (s *StratumSession) RecordShare(cfg *config.Config, targetDiff float64, sha
 			newDiff = mathRound(newDiff/32.0) * 32.0
 		}
 
-		s.CurrentDiff = newDiff
+		if newDiff != s.CurrentDiff {
+			s.PreviousDiff = s.CurrentDiff
+			s.CurrentDiff = newDiff
+			s.LastDiffChangeTime = now
+		}
 		s.LastVardiffTime = now
 		return newDiff, true
 	}
@@ -168,6 +176,22 @@ func mathMin(a, b float64) float64 {
 
 func mathRound(a float64) float64 {
 	return float64(int64(a + 0.5))
+}
+
+func (s *StratumSession) EffectiveSubmitDiff(gracePeriod time.Duration) (float64, float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	required := s.CurrentDiff
+	current := s.CurrentDiff
+
+	if s.PreviousDiff > 0 && s.PreviousDiff < s.CurrentDiff {
+		if time.Since(s.LastDiffChangeTime) <= gracePeriod {
+			required = s.PreviousDiff
+		}
+	}
+
+	return required, current
 }
 
 func (s *StratumSession) WriteJSON(payload interface{}) error {

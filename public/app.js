@@ -70,11 +70,12 @@ function updateDashboard(data) {
   // Render Blocks Mined
   const blocksList = document.getElementById('blocks-list');
   const coinSymbol = data.coinSymbol || 'BTC';
+  const latestBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 3) : [];
 
-  if (!data.blocksFound || data.blocksFound.length === 0) {
+  if (latestBlocks.length === 0) {
     blocksList.innerHTML = `<div class="empty-state">No solo blocks found yet. Keep hashing!</div>`;
   } else {
-    blocksList.innerHTML = data.blocksFound.map(b => `
+    blocksList.innerHTML = latestBlocks.map(b => `
       <div class="block-card">
         <div class="block-title">
           <span>Block #${b.height}</span>
