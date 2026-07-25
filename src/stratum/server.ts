@@ -258,43 +258,70 @@ export class StratumServer extends EventEmitter {
     let finalShareDiff = shareDiff;
     let accepted = hashBigInt <= minerTarget;
 
-    // Fallback check for Avalon/Canaan ASIC miners (nTime & extranonce2 byte-swap variations)
+    // Comprehensive Fallback Search for non-standard ASIC miners (Avalon Nano / Canaan / AsicBoost variations)
     if (!accepted) {
-      const altExtranonce2List = [
+      const baseVer = parseInt(job.versionHex, 16);
+      const versionCandidates = [version];
+      if (baseVer !== version) versionCandidates.push(baseVer);
+
+      const ext2Candidates = [
         extranonce2Hex,
         reverseBuffer(Buffer.from(extranonce2Hex, 'hex')).toString('hex'),
       ];
-      const altNtimeList = [
+      if (extranonce2Hex.length === 8) {
+        const wordSwapped = extranonce2Hex.substring(4) + extranonce2Hex.substring(0, 4);
+        if (!ext2Candidates.includes(wordSwapped)) ext2Candidates.push(wordSwapped);
+      }
+
+      const nTimeInt = parseInt(nTimeHex, 16);
+      const nTimeCandidates = [
         nTimeHex,
         reverseBuffer(Buffer.from(nTimeHex, 'hex')).toString('hex'),
       ];
+      if (!isNaN(nTimeInt)) {
+        nTimeCandidates.push((nTimeInt + 1).toString(16).padStart(8, '0'));
+        nTimeCandidates.push((nTimeInt - 1).toString(16).padStart(8, '0'));
+      }
 
-      outer: for (const ext2 of altExtranonce2List) {
-        const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
-        const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
-        const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
+      const nonceCandidates = [
+        nonceHex,
+        reverseBuffer(Buffer.from(nonceHex, 'hex')).toString('hex'),
+      ];
 
-        for (const nt of altNtimeList) {
-          const altHeader = buildBlockHeader({
-            version,
-            prevHashRawHex: job.prevHashRaw,
-            merkleRootBE: altMerkleRootBE,
-            nTimeHex: nt,
-            nBitsHex: job.nBitsHex,
-            nonceHex,
-          });
-          const altHashLE = sha256d(altHeader);
-          const altHashBE = reverseBuffer(altHashLE);
-          const altHashBigInt = bufferToBigIntBE(altHashBE);
+      const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
 
-          if (altHashBigInt <= minerTarget) {
-            finalHeader = altHeader;
-            finalHashLE = altHashLE;
-            finalHashBE = altHashBE;
-            finalHashBigInt = altHashBigInt;
-            finalShareDiff = hashToDifficulty(altHashLE);
-            accepted = true;
-            break outer;
+      outer: for (const ver of versionCandidates) {
+        for (const ext2 of ext2Candidates) {
+          const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
+          const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
+          const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
+
+          for (const prevH of prevHashCandidates) {
+            for (const nt of nTimeCandidates) {
+              for (const non of nonceCandidates) {
+                const altHeader = buildBlockHeader({
+                  version: ver,
+                  prevHashRawHex: prevH,
+                  merkleRootBE: altMerkleRootBE,
+                  nTimeHex: nt,
+                  nBitsHex: job.nBitsHex,
+                  nonceHex: non,
+                });
+                const altHashLE = sha256d(altHeader);
+                const altHashBE = reverseBuffer(altHashLE);
+                const altHashBigInt = bufferToBigIntBE(altHashBE);
+
+                if (altHashBigInt <= minerTarget) {
+                  finalHeader = altHeader;
+                  finalHashLE = altHashLE;
+                  finalHashBE = altHashBE;
+                  finalHashBigInt = altHashBigInt;
+                  finalShareDiff = hashToDifficulty(altHashLE);
+                  accepted = true;
+                  break outer;
+                }
+              }
+            }
           }
         }
       }
