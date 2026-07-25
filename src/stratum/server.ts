@@ -354,68 +354,8 @@ export class StratumServer extends EventEmitter {
       }
     }
 
-    // High-Performance Fallback Search (for candidates needing version/ext2 byte swap or close to required target)
-    if (!accepted && (finalShareDiff === 0 || finalShareDiff >= session.currentDiff * 0.1)) {
-      const nTimeCandidates = this.getNTimeCandidates(nTimeHex, job.nTimeHex);
-      const nonceCandidates = this.getNonceCandidates(nonceHex);
-      const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
-      const swapVerBECandidates = [false, true];
-      const swapNonceBECandidates = [true, false];
-      const swapNTimeBECandidates = [true, false];
-
-      const ext2MerkleRoots: Array<{ ext2: string; merkleRootBE: Buffer }> = [];
-      for (const ext2 of ext2Candidates) {
-        const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
-        const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
-        const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
-        ext2MerkleRoots.push({ ext2, merkleRootBE: altMerkleRootBE });
-      }
-
-      outer: for (const ver of versionCandidates) {
-        for (const swapVer of swapVerBECandidates) {
-          for (const { ext2, merkleRootBE: altMerkleRootBE } of ext2MerkleRoots) {
-            for (const prevH of prevHashCandidates) {
-              for (const nt of nTimeCandidates) {
-                for (const non of nonceCandidates) {
-                  for (const swapN of swapNonceBECandidates) {
-                    for (const swapNT of swapNTimeBECandidates) {
-                      const altHeader = buildBlockHeader({
-                        version: ver,
-                        prevHashRawHex: prevH,
-                        merkleRootBE: altMerkleRootBE,
-                        nTimeHex: nt,
-                        nBitsHex: job.nBitsHex,
-                        nonceHex: non,
-                        swapVersionBE: swapVer,
-                        swapNonceBE: swapN,
-                        swapNTimeBE: swapNT,
-                      });
-                      const altHashLE = sha256d(altHeader);
-                      const altHashBE = reverseBuffer(altHashLE);
-                      const altHashBigInt = bufferToBigIntBE(altHashBE);
-
-                      if (altHashBigInt <= minerTarget) {
-                        finalHeader = altHeader;
-                        finalHashLE = altHashLE;
-                        finalHashBE = altHashBE;
-                        finalHashBigInt = altHashBigInt;
-                        finalShareDiff = hashToDifficulty(altHashLE);
-                        accepted = true;
-                        break outer;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
     if (!accepted) {
       session.rejectedShares++;
-      // Silently reject low difficulty share without console log spam
       return this.sendResponse(session, id, false, {
         code: 23,
         message: `Low difficulty share (Achieved diff ${finalShareDiff.toFixed(2)} < required ${session.currentDiff})`,
