@@ -509,7 +509,12 @@ func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHe
 func (s *StratumServer) getExt2Candidates(ext2Hex string, ext2Size int) []string {
 	candidatesMap := map[string]bool{ext2Hex: true}
 	targetLen := ext2Size * 2
-	candidatesMap[fmt.Sprintf("%0*s", targetLen, ext2Hex)] = true
+	candidatesMap[fmt.Sprintf("%0*s", targetLen, ext2Hex)] = true // Left pad
+	
+	if len(ext2Hex) < targetLen {
+		rightPadded := ext2Hex + strings.Repeat("0", targetLen-len(ext2Hex))
+		candidatesMap[rightPadded] = true
+	}
 
 	b, err := hex.DecodeString(ext2Hex)
 	if err == nil {
