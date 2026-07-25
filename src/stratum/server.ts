@@ -233,7 +233,7 @@ export class StratumServer extends EventEmitter {
     );
 
     // 4. Build 80-byte Block Header
-    const header = buildBlockHeader({
+    let header = buildBlockHeader({
       version,
       prevHashRawHex: job.prevHashRaw,
       merkleRootBE,
@@ -243,16 +243,39 @@ export class StratumServer extends EventEmitter {
     });
 
     // 5. Calculate Double SHA-256 Hash of Header
-    const headerHashLE = sha256d(header);
-    const headerHashBE = reverseBuffer(headerHashLE);
-    const hashBigInt = bufferToBigIntBE(headerHashBE);
+    let headerHashLE = sha256d(header);
+    let headerHashBE = reverseBuffer(headerHashLE);
+    let hashBigInt = bufferToBigIntBE(headerHashBE);
 
     // Targets
     const minerTarget = difficultyToTarget(session.currentDiff);
     const networkTarget = nbitsToTarget(job.nBitsHex);
 
     // Calculate achieved share difficulty
-    const shareDiff = hashToDifficulty(headerHashLE);
+    let shareDiff = hashToDifficulty(headerHashLE);
+
+    // Endianness Fallback Check for Nonce if diff check failed
+    if (hashBigInt > minerTarget && nonceHex && nonceHex.length === 8) {
+      const altNonce = reverseBuffer(Buffer.from(nonceHex, 'hex')).toString('hex');
+      const altHeader = buildBlockHeader({
+        version,
+        prevHashRawHex: job.prevHashRaw,
+        merkleRootBE,
+        nTimeHex,
+        nBitsHex: job.nBitsHex,
+        nonceHex: altNonce,
+      });
+      const altHashLE = sha256d(altHeader);
+      const altHashBE = reverseBuffer(altHashLE);
+      const altHashBigInt = bufferToBigIntBE(altHashBE);
+      if (altHashBigInt <= minerTarget) {
+        header = altHeader;
+        headerHashLE = altHashLE;
+        headerHashBE = altHashBE;
+        hashBigInt = altHashBigInt;
+        shareDiff = hashToDifficulty(altHashLE);
+      }
+    }
 
     // Check against miner difficulty
     if (hashBigInt > minerTarget) {

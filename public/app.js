@@ -11,6 +11,15 @@ function formatHashrate(hashrate) {
   return hashrate.toFixed(2) + ' H/s';
 }
 
+function formatDifficulty(diff) {
+  if (!diff || diff <= 0) return '0.00';
+  if (diff >= 1e12) return (diff / 1e12).toFixed(2) + ' T';
+  if (diff >= 1e9) return (diff / 1e9).toFixed(2) + ' G';
+  if (diff >= 1e6) return (diff / 1e6).toFixed(2) + ' M';
+  if (diff >= 1e3) return (diff / 1e3).toFixed(2) + ' K';
+  return diff.toFixed(2);
+}
+
 function truncateAddress(addr) {
   if (!addr || addr.length < 12) return addr;
   return addr.substring(0, 8) + '...' + addr.substring(addr.length - 6);
@@ -37,6 +46,7 @@ function updateDashboard(data) {
   document.getElementById('pool-hashrate').innerText = formatHashrate(data.poolHashrate1m || 0);
   document.getElementById('connected-workers').innerText = data.connectedWorkers || 0;
   document.getElementById('block-height').innerText = data.blockHeight ? `#${data.blockHeight}` : '0';
+  document.getElementById('network-diff').innerText = formatDifficulty(data.networkDifficulty || 0);
   document.getElementById('blocks-count').innerText = data.blocksFound ? data.blocksFound.length : 0;
   document.getElementById('worker-badge').innerText = `${data.connectedWorkers || 0} Online`;
 

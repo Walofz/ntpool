@@ -33,6 +33,15 @@ export function nbitsToTarget(nbitsHex: string): bigint {
 }
 
 /**
+ * Convert compact nBits hex string to Network Difficulty number
+ */
+export function nbitsToDifficulty(nbitsHex: string): number {
+  const target = nbitsToTarget(nbitsHex);
+  if (target === 0n) return 0;
+  return Number(DIFF1_TARGET) / Number(target);
+}
+
+/**
  * Difficulty 1 Target (0x00000000ffff0000000000000000000000000000000000000000000000000000)
  */
 export const DIFF1_TARGET = 0x00000000ffff0000000000000000000000000000000000000000000000000000n;

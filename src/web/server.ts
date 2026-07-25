@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { config } from '../config';
 import { StratumServer } from '../stratum/server';
 import { JobManager } from '../pool/job';
+import { nbitsToDifficulty } from '../crypto/sha256';
 
 export class WebDashboardServer {
   private app: express.Application;
@@ -117,6 +118,7 @@ export class WebDashboardServer {
       stratumPort: config.stratumPort,
       network: config.network,
       blockHeight: currentJob ? currentJob.blockHeight : 0,
+      networkDifficulty: currentJob ? nbitsToDifficulty(currentJob.nBitsHex) : 0,
       activeMiners: uniqueMiners.size,
       connectedWorkers: sessions.length,
       poolHashrate1m,
