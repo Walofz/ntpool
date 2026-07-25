@@ -273,6 +273,21 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 		}
 	}
 
+	minerAddr := session.MinerAddress
+	if minerAddr == "" {
+		minerAddr = s.cfg.WalletAddress
+	}
+
+	cb := pool.BuildCoinbaseTransaction(
+		s.cfg,
+		job.BlockHeight,
+		job.CoinbaseValue,
+		minerAddr,
+		len(session.Extranonce1)/2,
+		session.Extranonce2Size,
+		job.DefaultWitnessCommitment,
+	)
+
 	ext2Candidates := s.getExt2Candidates(extranonce2Hex, session.Extranonce2Size)
 	nTimeCandidates := s.getNTimeCandidates(nTimeHex, job.NTimeHex)
 	nonceCandidates := s.getNonceCandidates(nonceHex)
@@ -287,7 +302,7 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 
 primaryLoop:
 	for _, ext2 := range ext2Candidates {
-		cbTxHex := fmt.Sprintf("%s%s%s%s", job.Coinb1, session.Extranonce1, ext2, job.Coinb2)
+		cbTxHex := fmt.Sprintf("%s%s%s%s", cb.Coinb1, session.Extranonce1, ext2, cb.Coinb2)
 		cbTxBytes, _ := hex.DecodeString(cbTxHex)
 		cbTxIdLE := crypto.Sha256d(cbTxBytes)
 		mRoot := crypto.CalculateMerkleRoot(cbTxIdLE, job.MerkleBranchHex)
@@ -397,11 +412,26 @@ func (s *StratumServer) BroadcastJob(job *pool.MiningJob, cleanJobs bool) {
 }
 
 func (s *StratumServer) sendJobToSession(session *StratumSession, job *pool.MiningJob, cleanJobs bool) {
+	minerAddr := session.MinerAddress
+	if minerAddr == "" {
+		minerAddr = s.cfg.WalletAddress
+	}
+
+	cb := pool.BuildCoinbaseTransaction(
+		s.cfg,
+		job.BlockHeight,
+		job.CoinbaseValue,
+		minerAddr,
+		len(session.Extranonce1)/2,
+		session.Extranonce2Size,
+		job.DefaultWitnessCommitment,
+	)
+
 	params := []interface{}{
 		job.JobId,
 		job.PrevHashStratum,
-		job.Coinb1,
-		job.Coinb2,
+		cb.Coinb1,
+		cb.Coinb2,
 		job.MerkleBranchHex,
 		job.VersionHex,
 		job.NBitsHex,

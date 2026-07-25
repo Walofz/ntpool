@@ -31,24 +31,35 @@ func main() {
 		log.Fatalf("Failed to start Stratum server: %v", err)
 	}
 
-	// Start Block Template Poller / Job Engine
+	// Helper to fetch and broadcast new block template
+	updateJob := func(reason string) {
+		tmpl, err := bitcoinRpc.GetBlockTemplate()
+		if err == nil && tmpl != nil {
+			currentJob := jobManager.GetCurrentJob()
+			heightFloat, _ := tmpl["height"].(float64)
+			newHeight := int64(heightFloat)
+
+			if currentJob == nil || currentJob.BlockHeight != newHeight {
+				log.Printf("[JobEngine Go] New block template (%s) Height #%d", reason, newHeight)
+				job := jobManager.CreateJob(tmpl)
+				stratumServer.BroadcastJob(job, true)
+			}
+		}
+	}
+
+	// Instant ZMQ Block Subscriber
+	zmqSub := bitcoin.NewZmqBlockSubscriber(cfg, func(blockHash string) {
+		updateJob("ZMQ Instant Notification")
+	})
+	zmqSub.Start()
+
+	// Backup Poller (Every 3 seconds)
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
 		defer ticker.Stop()
 
 		for {
-			tmpl, err := bitcoinRpc.GetBlockTemplate()
-			if err == nil && tmpl != nil {
-				currentJob := jobManager.GetCurrentJob()
-				heightFloat, _ := tmpl["height"].(float64)
-				newHeight := int64(heightFloat)
-
-				if currentJob == nil || currentJob.BlockHeight != newHeight {
-					log.Printf("[JobEngine Go] New block template received from Bitcoin Core (Height #%d)", newHeight)
-					job := jobManager.CreateJob(tmpl)
-					stratumServer.BroadcastJob(job, true)
-				}
-			}
+			updateJob("3s Backup Poller")
 			<-ticker.C
 		}
 	}()

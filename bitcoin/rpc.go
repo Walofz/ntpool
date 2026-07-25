@@ -82,7 +82,12 @@ func (c *BitcoinRpcClient) GetBlockTemplate() (map[string]interface{}, error) {
 			"rules": rules,
 		},
 	}
-	return c.Call("getblocktemplate", params)
+	res, err := c.Call("getblocktemplate", params)
+	if err != nil {
+		// Fallback for altcoin SHA-256 nodes (DigiByte, BCH, BSV, Pepecoin, Luckycoin, etc.)
+		return c.Call("getblocktemplate", []interface{}{map[string]interface{}{}})
+	}
+	return res, nil
 }
 
 func (c *BitcoinRpcClient) SubmitBlock(blockHex string) (interface{}, error) {
