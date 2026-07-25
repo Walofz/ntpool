@@ -212,108 +212,45 @@ export class StratumServer extends EventEmitter {
     // Coinbase TxID (SHA-256d)
     const coinbaseTxIdLE = sha256d(coinbaseTxBuf);
 
-    // 2. Calculate Merkle Root
+    // Calculate Merkle Root
     const merkleRootBE = calculateMerkleRoot(coinbaseTxIdLE, job.merkleBranchHex);
 
-    // 3. AsicBoost Header Version (try both base version and bitwise version)
-    const asicboostVersion = calculateAsicBoostVersion(
-      job.versionHex,
-      versionBitsHex,
-      session.versionRollingMask
-    );
-    const baseVersion = parseInt(job.versionHex, 16);
-    const versionList = [asicboostVersion];
-    if (baseVersion !== asicboostVersion) {
-      versionList.push(baseVersion);
-    }
-
-    // 4. Targets & Comprehensive Multi-pass Header Verification
-    const minerTarget = difficultyToTarget(session.currentDiff);
-    const networkTarget = job.targetHex ? bufferToBigIntBE(Buffer.from(job.targetHex, 'hex')) : nbitsToTarget(job.nBitsHex);
-
-    const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
-    const combinations: Array<{
-      swapVersion: boolean;
-      swapMerkle: boolean;
-      swapNonce: boolean;
-      swapNtime: boolean;
-    }> = [];
-
-    for (const swapVersion of [false, true]) {
-      for (const swapMerkle of [false, true]) {
-        for (const swapNonce of [false, true]) {
-          for (const swapNtime of [false, true]) {
-            combinations.push({ swapVersion, swapMerkle, swapNonce, swapNtime });
-          }
-        }
+    // AsicBoost Header Version (matching Go parseVersionBits & calculation)
+    let version = parseInt(job.versionHex, 16);
+    if (versionBitsHex !== undefined && versionBitsHex !== null && versionBitsHex !== '') {
+      let vBits: number | null = null;
+      if (typeof versionBitsHex === 'number') {
+        vBits = versionBitsHex >>> 0;
+      } else if (typeof versionBitsHex === 'string') {
+        const parsed = parseInt(versionBitsHex, 16);
+        if (!isNaN(parsed)) vBits = parsed >>> 0;
+      }
+      if (vBits !== null) {
+        const mask = 0x1fffe000;
+        version = ((version & ~mask) | (vBits & mask)) >>> 0;
       }
     }
 
-    let bestHeader = buildBlockHeader({
-      version: versionList[0],
-      prevHashRawHex: prevHashCandidates[0],
+    // Build 80-byte Block Header (1:1 with Go buildBlockHeader)
+    const header = buildBlockHeader({
+      version,
+      prevHashRawHex: job.prevHashRaw,
       merkleRootBE,
       nTimeHex,
       nBitsHex: job.nBitsHex,
       nonceHex,
     });
-    let bestHashLE = sha256d(bestHeader);
-    let bestHashBE = reverseBuffer(bestHashLE);
-    let bestHashBigInt = bufferToBigIntBE(bestHashBE);
-    let bestShareDiff = hashToDifficulty(bestHashLE);
 
-    let accepted = false;
+    const headerHashLE = sha256d(header);
+    const headerHashBE = reverseBuffer(headerHashLE);
+    const hashBigInt = bufferToBigIntBE(headerHashBE);
 
-    for (const ver of versionList) {
-      if (accepted) break;
-      for (const prevHash of prevHashCandidates) {
-        if (accepted) break;
-        for (const combo of combinations) {
-          const h = buildBlockHeader({
-            version: ver,
-            prevHashRawHex: prevHash,
-            merkleRootBE,
-            nTimeHex,
-            nBitsHex: job.nBitsHex,
-            nonceHex,
-            swapVersionByteOrder: combo.swapVersion,
-            swapMerkleByteOrder: combo.swapMerkle,
-            swapNonceByteOrder: combo.swapNonce,
-            swapNtimeByteOrder: combo.swapNtime,
-          });
-          const hLE = sha256d(h);
-          const hBE = reverseBuffer(hLE);
-          const hBigInt = bufferToBigIntBE(hBE);
-          const diff = hashToDifficulty(hLE);
+    const shareDiff = hashToDifficulty(headerHashLE);
 
-          if (hBigInt <= minerTarget) {
-            bestHeader = h;
-            bestHashLE = hLE;
-            bestHashBE = hBE;
-            bestHashBigInt = hBigInt;
-            bestShareDiff = diff;
-            accepted = true;
-            break;
-          }
+    // Targets
+    const minerTarget = difficultyToTarget(session.currentDiff);
+    const networkTarget = job.targetHex ? bufferToBigIntBE(Buffer.from(job.targetHex, 'hex')) : nbitsToTarget(job.nBitsHex);
 
-          if (diff > bestShareDiff) {
-            bestHeader = h;
-            bestHashLE = hLE;
-            bestHashBE = hBE;
-            bestHashBigInt = hBigInt;
-            bestShareDiff = diff;
-          }
-        }
-      }
-    }
-
-    const header = bestHeader;
-    const headerHashLE = bestHashLE;
-    const headerHashBE = bestHashBE;
-    const hashBigInt = bestHashBigInt;
-    const shareDiff = bestShareDiff;
-
-    // Check against miner difficulty
     if (hashBigInt > minerTarget) {
       session.rejectedShares++;
       console.log(`[Share Rejected] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(6)}, Required: ${session.currentDiff}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}`);

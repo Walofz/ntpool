@@ -120,56 +120,26 @@ export function buildBlockHeader(params: {
   nTimeHex: string;
   nBitsHex: string;
   nonceHex: string;
-  swapVersionByteOrder?: boolean;
-  swapMerkleByteOrder?: boolean;
-  swapNonceByteOrder?: boolean;
-  swapNtimeByteOrder?: boolean;
 }): Buffer {
   const header = Buffer.alloc(80);
 
-  // 1. Version (4 bytes)
-  if (params.swapVersionByteOrder) {
-    header.writeUInt32BE(params.version >>> 0, 0);
-  } else {
-    header.writeUInt32LE(params.version >>> 0, 0);
-  }
+  // 1. Version (4 bytes LE)
+  header.writeUInt32LE(params.version >>> 0, 0);
 
-  // 2. PrevHash (32 bytes, Little Endian)
-  const prevHashBuf = reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex'));
-  if (prevHashBuf.length === 32) {
-    prevHashBuf.copy(header, 4);
-  } else {
-    Buffer.alloc(32).copy(header, 4);
-  }
+  // 2. PrevHash (32 bytes reversed)
+  reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex')).copy(header, 4);
 
-  // 3. Merkle Root (32 bytes)
-  if (params.swapMerkleByteOrder) {
-    reverseBuffer(params.merkleRootBE).copy(header, 36);
-  } else {
-    params.merkleRootBE.copy(header, 36);
-  }
+  // 3. Merkle Root (32 bytes LE)
+  params.merkleRootBE.copy(header, 36);
 
-  // 4. nTime (4 bytes)
-  if (params.swapNtimeByteOrder) {
-    const nTimeBuf = Buffer.from(params.nTimeHex, 'hex');
-    if (nTimeBuf.length === 4) nTimeBuf.copy(header, 68);
-  } else {
-    const nTime = parseInt(params.nTimeHex, 16);
-    header.writeUInt32LE(nTime, 68);
-  }
+  // 4. nTime (4 bytes reversed)
+  reverseBuffer(Buffer.from(params.nTimeHex, 'hex')).copy(header, 68);
 
-  // 5. nBits (4 bytes, Little Endian)
-  const nBits = parseInt(params.nBitsHex, 16);
-  header.writeUInt32LE(nBits, 72);
+  // 5. nBits (4 bytes reversed)
+  reverseBuffer(Buffer.from(params.nBitsHex, 'hex')).copy(header, 72);
 
-  // 6. Nonce (4 bytes)
-  if (params.swapNonceByteOrder) {
-    const nonceBuf = Buffer.from(params.nonceHex, 'hex');
-    if (nonceBuf.length === 4) nonceBuf.copy(header, 76);
-  } else {
-    const nonce = parseInt(params.nonceHex, 16);
-    header.writeUInt32LE(nonce, 76);
-  }
+  // 6. Nonce (4 bytes reversed)
+  reverseBuffer(Buffer.from(params.nonceHex, 'hex')).copy(header, 76);
 
   return header;
 }
