@@ -27,6 +27,7 @@ RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 COPY public ./public
 COPY .env.example ./.env.example
+COPY .env ./.env
 
 # Stratum TCP Port (3333) & Web Dashboard HTTP Port (8080)
 EXPOSE 3333 8080
