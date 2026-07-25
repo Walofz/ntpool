@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"path/filepath"
 
 	"github.com/gorilla/websocket"
 
