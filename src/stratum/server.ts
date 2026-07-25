@@ -232,8 +232,18 @@ export class StratumServer extends EventEmitter {
       session.versionRollingMask
     );
 
-    // 4. Build 80-byte Block Header
-    let header = buildBlockHeader({
+    // 4. Targets & Multi-pass Header Endianness Verification
+    const minerTarget = difficultyToTarget(session.currentDiff);
+    const networkTarget = nbitsToTarget(job.nBitsHex);
+
+    const combinations = [
+      { swapNonce: false, swapNtime: false },
+      { swapNonce: true, swapNtime: false },
+      { swapNonce: false, swapNtime: true },
+      { swapNonce: true, swapNtime: true },
+    ];
+
+    let bestHeader = buildBlockHeader({
       version,
       prevHashRawHex: job.prevHashRaw,
       merkleRootBE,
@@ -241,50 +251,62 @@ export class StratumServer extends EventEmitter {
       nBitsHex: job.nBitsHex,
       nonceHex,
     });
+    let bestHashLE = sha256d(bestHeader);
+    let bestHashBE = reverseBuffer(bestHashLE);
+    let bestHashBigInt = bufferToBigIntBE(bestHashBE);
+    let bestShareDiff = hashToDifficulty(bestHashLE);
 
-    // 5. Calculate Double SHA-256 Hash of Header
-    let headerHashLE = sha256d(header);
-    let headerHashBE = reverseBuffer(headerHashLE);
-    let hashBigInt = bufferToBigIntBE(headerHashBE);
-
-    // Targets
-    const minerTarget = difficultyToTarget(session.currentDiff);
-    const networkTarget = nbitsToTarget(job.nBitsHex);
-
-    // Calculate achieved share difficulty
-    let shareDiff = hashToDifficulty(headerHashLE);
-
-    // Endianness Fallback Check for Nonce if diff check failed
-    if (hashBigInt > minerTarget && nonceHex && nonceHex.length === 8) {
-      const altNonce = reverseBuffer(Buffer.from(nonceHex, 'hex')).toString('hex');
-      const altHeader = buildBlockHeader({
+    for (const combo of combinations) {
+      const h = buildBlockHeader({
         version,
         prevHashRawHex: job.prevHashRaw,
         merkleRootBE,
         nTimeHex,
         nBitsHex: job.nBitsHex,
-        nonceHex: altNonce,
+        nonceHex,
+        swapNonceByteOrder: combo.swapNonce,
+        swapNtimeByteOrder: combo.swapNtime,
       });
-      const altHashLE = sha256d(altHeader);
-      const altHashBE = reverseBuffer(altHashLE);
-      const altHashBigInt = bufferToBigIntBE(altHashBE);
-      if (altHashBigInt <= minerTarget) {
-        header = altHeader;
-        headerHashLE = altHashLE;
-        headerHashBE = altHashBE;
-        hashBigInt = altHashBigInt;
-        shareDiff = hashToDifficulty(altHashLE);
+      const hLE = sha256d(h);
+      const hBE = reverseBuffer(hLE);
+      const hBigInt = bufferToBigIntBE(hBE);
+      const diff = hashToDifficulty(hLE);
+
+      if (hBigInt <= minerTarget) {
+        bestHeader = h;
+        bestHashLE = hLE;
+        bestHashBE = hBE;
+        bestHashBigInt = hBigInt;
+        bestShareDiff = diff;
+        break;
+      }
+
+      if (diff > bestShareDiff) {
+        bestHeader = h;
+        bestHashLE = hLE;
+        bestHashBE = hBE;
+        bestHashBigInt = hBigInt;
+        bestShareDiff = diff;
       }
     }
+
+    const header = bestHeader;
+    const headerHashLE = bestHashLE;
+    const headerHashBE = bestHashBE;
+    const hashBigInt = bestHashBigInt;
+    const shareDiff = bestShareDiff;
 
     // Check against miner difficulty
     if (hashBigInt > minerTarget) {
       session.rejectedShares++;
+      console.log(`[Share Rejected] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(4)}, Required Diff: ${session.currentDiff}`);
       return this.sendResponse(session, id, false, {
         code: 23,
         message: `Low difficulty share (Achieved diff ${shareDiff.toFixed(2)} < required ${session.currentDiff})`,
       });
     }
+
+    console.log(`[Share ACCEPTED] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(2)}, Required Diff: ${session.currentDiff}`);
 
     // ACCEPTED SHARE!
     const newDiff = session.recordShare(shareDiff);

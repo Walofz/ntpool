@@ -120,11 +120,13 @@ export function buildBlockHeader(params: {
   nTimeHex: string;
   nBitsHex: string;
   nonceHex: string;
+  swapNonceByteOrder?: boolean;
+  swapNtimeByteOrder?: boolean;
 }): Buffer {
   const header = Buffer.alloc(80);
 
   // 1. Version (4 bytes, Little Endian)
-  header.writeUInt32LE(params.version, 0);
+  header.writeUInt32LE(params.version >>> 0, 0);
 
   // 2. PrevHash (32 bytes, Little Endian)
   const prevHashBuf = reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex'));
@@ -137,28 +139,26 @@ export function buildBlockHeader(params: {
   // 3. Merkle Root (32 bytes, Little Endian)
   params.merkleRootBE.copy(header, 36);
 
-  // 4. nTime (4 bytes, raw hex bytes)
-  const nTimeBuf = Buffer.from(params.nTimeHex, 'hex');
-  if (nTimeBuf.length === 4) {
-    nTimeBuf.copy(header, 68);
+  // 4. nTime (4 bytes, Little Endian)
+  if (params.swapNtimeByteOrder) {
+    const nTimeBuf = Buffer.from(params.nTimeHex, 'hex');
+    if (nTimeBuf.length === 4) nTimeBuf.copy(header, 68);
   } else {
-    header.writeUInt32LE(parseInt(params.nTimeHex, 16), 68);
+    const nTime = parseInt(params.nTimeHex, 16);
+    header.writeUInt32LE(nTime, 68);
   }
 
-  // 5. nBits (4 bytes, raw hex bytes)
-  const nBitsBuf = Buffer.from(params.nBitsHex, 'hex');
-  if (nBitsBuf.length === 4) {
-    nBitsBuf.copy(header, 72);
-  } else {
-    header.writeUInt32LE(parseInt(params.nBitsHex, 16), 72);
-  }
+  // 5. nBits (4 bytes, Little Endian)
+  const nBits = parseInt(params.nBitsHex, 16);
+  header.writeUInt32LE(nBits, 72);
 
-  // 6. Nonce (4 bytes, raw hex bytes)
-  const nonceBuf = Buffer.from(params.nonceHex, 'hex');
-  if (nonceBuf.length === 4) {
-    nonceBuf.copy(header, 76);
+  // 6. Nonce (4 bytes, Little Endian)
+  if (params.swapNonceByteOrder) {
+    const nonceBuf = Buffer.from(params.nonceHex, 'hex');
+    if (nonceBuf.length === 4) nonceBuf.copy(header, 76);
   } else {
-    header.writeUInt32LE(parseInt(params.nonceHex, 16), 76);
+    const nonce = parseInt(params.nonceHex, 16);
+    header.writeUInt32LE(nonce, 76);
   }
 
   return header;
