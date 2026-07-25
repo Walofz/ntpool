@@ -12,6 +12,7 @@ High-performance SHA-256 Solo Mining Pool (CKPool style architecture) with Overt
 - **🚀 Overt AsicBoost (Version Rolling)**: รองรับการขุดแบบ AsicBoost ช่วยเพิ่มประสิทธิภาพและประหยัดพลังงานสำหรับเครื่อง ASIC (เช่น Antminer S9/S19/S21, Whatsminer, Avalon)
 - **💎 Direct Coinbase Payout**: เมื่อขุดเจอ บล็อกและรางวัลรวมถึงค่าธรรมเนียมธุรกรรม (Block Reward + Tx Fees) จะถูกจ่ายตรงไปยัง Bitcoin Address ของผู้ขุดใน Coinbase Transaction ทันที ไม่ต้องผ่านกระเป๋าของ Pool
 - **📊 Real-time Web Dashboard**: ดูสถานะเครื่องขุด (Workers), Hashrate 1m/5m, Diff, Best Share และค้นหาข้อมูลตาม Bitcoin Address ผ่าน Web Browser แบบเรียลไทม์ (WebSocket)
+- **🔔 ntfy Alert on Found Block**: ส่งแจ้งเตือนเมื่อ `submitblock` สำเร็จ และรีเซ็ต `Best Share` ของทุกรอบเป็น `0` อัตโนมัติ
 - **🐳 Docker Ready**: มี `Dockerfile` และ `docker-compose.yml` สำหรับการติดตั้งและรันแบบ Container บน Server ได้อย่างสะดวก
 
 ---
@@ -62,6 +63,10 @@ cp .env.example .env
 | `ZMQ_PORT` | พอร์ต ZMQ rawblock สำหรับการอัปเดตบล็อกใหม่ทันที | `28332` |
 | `POOL_NAME` | ชื่อเรียกของ Pool | `ntpool SHA-256 Solo Pool` |
 | `COINBASE_TEXT` | ข้อความระบุตัวตนที่จะใส่ลงใน Coinbase Transaction | `/ntpool/` |
+| `NTFY_SERVER` | URL ของ ntfy server สำหรับแจ้งเตือนขุดพบบล็อก | `http://192.168.1.250:18080` |
+| `NTFY_TOPIC` | topic ปลายทางบน ntfy | `ntpool-blocks` |
+| `NTFY_USER` | username สำหรับ Basic Auth ของ ntfy | `user` |
+| `NTFY_PASSWORD` | password สำหรับ Basic Auth ของ ntfy | `pass` |
 
 ---
 
