@@ -251,19 +251,68 @@ export class StratumServer extends EventEmitter {
     const minerTarget = difficultyToTarget(session.currentDiff);
     const networkTarget = job.targetHex ? bufferToBigIntBE(Buffer.from(job.targetHex, 'hex')) : nbitsToTarget(job.nBitsHex);
 
-    if (hashBigInt > minerTarget) {
+    let finalHeader = header;
+    let finalHashLE = headerHashLE;
+    let finalHashBE = headerHashBE;
+    let finalHashBigInt = hashBigInt;
+    let finalShareDiff = shareDiff;
+    let accepted = hashBigInt <= minerTarget;
+
+    // Fallback check for Avalon/Canaan ASIC miners (nTime & extranonce2 byte-swap variations)
+    if (!accepted) {
+      const altExtranonce2List = [
+        extranonce2Hex,
+        reverseBuffer(Buffer.from(extranonce2Hex, 'hex')).toString('hex'),
+      ];
+      const altNtimeList = [
+        nTimeHex,
+        reverseBuffer(Buffer.from(nTimeHex, 'hex')).toString('hex'),
+      ];
+
+      outer: for (const ext2 of altExtranonce2List) {
+        const altCoinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
+        const altCoinbaseTxIdLE = sha256d(Buffer.from(altCoinbaseTxHex, 'hex'));
+        const altMerkleRootBE = calculateMerkleRoot(altCoinbaseTxIdLE, job.merkleBranchHex);
+
+        for (const nt of altNtimeList) {
+          const altHeader = buildBlockHeader({
+            version,
+            prevHashRawHex: job.prevHashRaw,
+            merkleRootBE: altMerkleRootBE,
+            nTimeHex: nt,
+            nBitsHex: job.nBitsHex,
+            nonceHex,
+          });
+          const altHashLE = sha256d(altHeader);
+          const altHashBE = reverseBuffer(altHashLE);
+          const altHashBigInt = bufferToBigIntBE(altHashBE);
+
+          if (altHashBigInt <= minerTarget) {
+            finalHeader = altHeader;
+            finalHashLE = altHashLE;
+            finalHashBE = altHashBE;
+            finalHashBigInt = altHashBigInt;
+            finalShareDiff = hashToDifficulty(altHashLE);
+            accepted = true;
+            break outer;
+          }
+        }
+      }
+    }
+
+    if (!accepted) {
       session.rejectedShares++;
-      console.log(`[Share Rejected] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(6)}, Required: ${session.currentDiff}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}`);
+      console.log(`[Share Rejected] Worker: ${session.workerName}, Achieved Diff: ${finalShareDiff.toFixed(6)}, Required: ${session.currentDiff}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}`);
       return this.sendResponse(session, id, false, {
         code: 23,
-        message: `Low difficulty share (Achieved diff ${shareDiff.toFixed(2)} < required ${session.currentDiff})`,
+        message: `Low difficulty share (Achieved diff ${finalShareDiff.toFixed(2)} < required ${session.currentDiff})`,
       });
     }
 
-    console.log(`[Share ACCEPTED] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(2)}, Required Diff: ${session.currentDiff}`);
+    console.log(`[Share ACCEPTED] Worker: ${session.workerName}, Achieved Diff: ${finalShareDiff.toFixed(2)}, Required Diff: ${session.currentDiff}`);
 
     // ACCEPTED SHARE!
-    const newDiff = session.recordShare(session.currentDiff, shareDiff);
+    const newDiff = session.recordShare(session.currentDiff, finalShareDiff);
     this.sendResponse(session, id, true);
     this.emit('stats_updated');
 
@@ -273,13 +322,13 @@ export class StratumServer extends EventEmitter {
     }
 
     // CHECK IF THIS SHARE FOUND A BLOCK FOR THE NETWORK! 🎉
-    if (hashBigInt <= networkTarget) {
+    if (finalHashBigInt <= networkTarget) {
       console.log(`[BLOCK FOUND] 🎉🎉🎉 Miner ${session.minerAddress} FOUND BLOCK #${job.blockHeight}!`);
-      console.log(`Block Hash: ${headerHashBE.toString('hex')}`);
+      console.log(`Block Hash: ${finalHashBE.toString('hex')}`);
 
       this.resetAllBestShares();
 
-      const blockHex = this.buildFullBlockHex(header, coinbaseTxHex, job.txsData);
+      const blockHex = this.buildFullBlockHex(finalHeader, coinbaseTxHex, job.txsData);
       
       try {
         const result = await this.bitcoinRpc.submitBlock(blockHex);
