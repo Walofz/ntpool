@@ -76,7 +76,6 @@ func (s *StratumServer) loadFoundBlocks() {
 		}
 	}
 
-	// If file does not exist, initialize empty array file
 	s.FoundBlocks = []FoundBlock{}
 	initialData, _ := json.MarshalIndent(s.FoundBlocks, "", "  ")
 	_ = os.WriteFile(s.blocksFilePath, initialData, 0644)
@@ -102,6 +101,7 @@ func (s *StratumServer) Start() error {
 	if err != nil {
 		return err
 	}
+
 	log.Printf("[Stratum Go] Server listening on %s", addr)
 
 	go func() {
@@ -122,7 +122,6 @@ func (s *StratumServer) handleConnection(conn net.Conn) {
 	s.sessionCounter++
 	sessionId := fmt.Sprintf("%08x", s.sessionCounter)
 	extranonce1 := fmt.Sprintf("%08x", s.sessionCounter&0xffffffff)
-
 	session := NewStratumSession(sessionId, conn, extranonce1, s.cfg.DefaultDiff)
 	s.sessions[sessionId] = session
 	s.mu.Unlock()
@@ -231,8 +230,8 @@ func (s *StratumServer) handleAuthorize(session *StratumSession, id interface{},
 	} else {
 		session.WorkerName = "default"
 	}
-	session.IsAuthorized = true
 
+	session.IsAuthorized = true
 	s.sendResponse(session, id, true, nil)
 	s.notifyStats()
 
@@ -265,8 +264,8 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 	}
 
 	minerTarget := crypto.DifficultyToTarget(session.CurrentDiff)
-
 	networkTarget := crypto.NbitsToTarget(job.NBitsHex)
+
 	if job.TargetHex != "" {
 		if t, err := hex.DecodeString(job.TargetHex); err == nil {
 			networkTarget = new(big.Int).SetBytes(t)
@@ -313,6 +312,7 @@ primaryLoop:
 					header := crypto.BuildBlockHeader(ver, job.PrevHashRaw, mRoot, nTime, job.NBitsHex, nonce)
 					headerHashLE := crypto.Sha256d(header)
 					headerHashBE := crypto.ReverseBytes(headerHashLE)
+
 					hashBigInt := new(big.Int).SetBytes(headerHashBE)
 
 					if hashBigInt.Cmp(minerTarget) <= 0 {
@@ -349,6 +349,7 @@ primaryLoop:
 	log.Printf("[Share ACCEPTED] Worker: %s, Achieved Diff: %.2f, Required Diff: %.2f", session.WorkerName, finalShareDiff, session.CurrentDiff)
 
 	newDiff, diffChanged := session.RecordShare(s.cfg, session.CurrentDiff, finalShareDiff)
+
 	s.sendResponse(session, id, true, nil)
 	s.notifyStats()
 
@@ -356,10 +357,10 @@ primaryLoop:
 		s.sendNotification(session, "mining.set_difficulty", []interface{}{newDiff})
 	}
 
-	// CHECK IF THIS SHARE FOUND A NETWORK BLOCK! 🎉
+	// CHECK IF THIS SHARE FOUND A NETWORK BLOCK!
 	if finalHashBigInt != nil && finalHashBigInt.Cmp(networkTarget) <= 0 {
 		blockHashHex := hex.EncodeToString(finalHashBE)
-		log.Printf("🎉🎉🎉 [BLOCK FOUND] Miner %s FOUND BLOCK #%d! Hash: %s", session.MinerAddress, job.BlockHeight, blockHashHex)
+		log.Printf("  [BLOCK FOUND] Miner %s FOUND BLOCK #%d! Hash: %s", session.MinerAddress, job.BlockHeight, blockHashHex)
 
 		blockRecord := FoundBlock{
 			Height:    job.BlockHeight,
@@ -457,12 +458,14 @@ func (s *StratumServer) sendJobToSession(session *StratumSession, job *pool.Mini
 		job.NTimeHex,
 		cleanJobs,
 	}
+
 	s.sendNotification(session, "mining.notify", params)
 }
 
 func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHex interface{}, sessionMaskHex string) []uint32 {
 	baseVersion64, _ := strconv.ParseUint(jobVersionHex, 16, 32)
 	baseVersion := uint32(baseVersion64)
+
 	mask64, err := strconv.ParseUint(sessionMaskHex, 16, 32)
 	mask := uint32(0x1fffe000)
 	if err == nil {
@@ -474,6 +477,7 @@ func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHe
 	if versionBitsHex != nil {
 		var rawBitsNum uint32
 		var parsed bool
+
 		switch v := versionBitsHex.(type) {
 		case float64:
 			rawBitsNum = uint32(v)
@@ -496,6 +500,10 @@ func (s *StratumServer) getVersionCandidates(jobVersionHex string, versionBitsHe
 			binary.BigEndian.PutUint32(buf32, rawBitsNum)
 			swapped32 := binary.LittleEndian.Uint32(buf32)
 			candidatesMap[(baseVersion&^mask)|(swapped32&mask)] = true
+
+			// Bitaxe BM1370 Version bits word swap
+			wordSwapped32 := (rawBitsNum >> 16) | (rawBitsNum << 16)
+			candidatesMap[(baseVersion&^mask)|(wordSwapped32&mask)] = true
 		}
 	}
 
@@ -510,7 +518,7 @@ func (s *StratumServer) getExt2Candidates(ext2Hex string, ext2Size int) []string
 	candidatesMap := map[string]bool{ext2Hex: true}
 	targetLen := ext2Size * 2
 	candidatesMap[fmt.Sprintf("%0*s", targetLen, ext2Hex)] = true // Left pad
-	
+
 	if len(ext2Hex) < targetLen {
 		rightPadded := ext2Hex + strings.Repeat("0", targetLen-len(ext2Hex))
 		candidatesMap[rightPadded] = true
@@ -524,6 +532,10 @@ func (s *StratumServer) getExt2Candidates(ext2Hex string, ext2Size int) []string
 	if len(ext2Hex) == 8 {
 		wordSwapped := ext2Hex[4:] + ext2Hex[:4]
 		candidatesMap[wordSwapped] = true
+
+		// For Bitaxe Gamma (BM1370) specific SPI byte shift quirks
+		byteSwappedWords := ext2Hex[2:4] + ext2Hex[0:2] + ext2Hex[6:8] + ext2Hex[4:6]
+		candidatesMap[byteSwappedWords] = true
 	}
 
 	var candidates []string
@@ -540,9 +552,15 @@ func (s *StratumServer) getNTimeCandidates(nTimeHex string, jobNTimeHex string) 
 	if err1 == nil {
 		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b1))] = true
 	}
+
 	b2, err2 := hex.DecodeString(jobNTimeHex)
 	if err2 == nil {
 		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b2))] = true
+	}
+
+	if len(nTimeHex) == 8 {
+		wordSwapped := nTimeHex[4:] + nTimeHex[:4]
+		candidatesMap[wordSwapped] = true
 	}
 
 	nTimeInt, err := strconv.ParseUint(nTimeHex, 16, 32)
@@ -564,8 +582,8 @@ func (s *StratumServer) getNonceCandidates(nonceHex string) []string {
 	padded := fmt.Sprintf("%08s", nonceHex)
 	candidatesMap := map[string]bool{padded: true, nonceHex: true}
 
-	b, err := hex.DecodeString(padded)
-	if err == nil {
+	if b, err := hex.DecodeString(padded); err == nil {
+		// Full Reverse (Little/Big Endian swap)
 		candidatesMap[hex.EncodeToString(crypto.ReverseBytes(b))] = true
 	}
 
@@ -573,9 +591,16 @@ func (s *StratumServer) getNonceCandidates(nonceHex string) []string {
 		// 16-bit word swap (first 2 bytes <-> last 2 bytes) for Avalon Nano 3 / Canaan
 		wordSwapped := padded[4:] + padded[:4]
 		candidatesMap[wordSwapped] = true
-		wsBytes, err := hex.DecodeString(wordSwapped)
-		if err == nil {
+
+		if wsBytes, err := hex.DecodeString(wordSwapped); err == nil {
 			candidatesMap[hex.EncodeToString(crypto.ReverseBytes(wsBytes))] = true
+		}
+
+		// Byte-swapped within words for BM1370 (Gamma) specific quirks
+		byteSwappedWords := padded[2:4] + padded[0:2] + padded[6:8] + padded[4:6]
+		candidatesMap[byteSwappedWords] = true
+		if bwBytes, err := hex.DecodeString(byteSwappedWords); err == nil {
+			candidatesMap[hex.EncodeToString(crypto.ReverseBytes(bwBytes))] = true
 		}
 	}
 
@@ -589,6 +614,7 @@ func (s *StratumServer) getNonceCandidates(nonceHex string) []string {
 func (s *StratumServer) GetActiveSessions() []*StratumSession {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	var list []*StratumSession
 	for _, sess := range s.sessions {
 		list = append(list, sess)
