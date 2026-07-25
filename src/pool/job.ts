@@ -76,11 +76,12 @@ export class JobManager {
 
       if (hashes.length === 1) break;
 
-      // Reduce level: hash pairs [0,1], [2,3], [4,5], ...
+      // Slice out index 0 which has been added to branch, then reduce remaining hashes pairwise
+      const remaining = hashes.slice(1);
       const nextLevel: Buffer[] = [];
-      for (let i = 0; i < hashes.length; i += 2) {
-        const left = hashes[i];
-        const right = i + 1 < hashes.length ? hashes[i + 1] : hashes[i];
+      for (let i = 0; i < remaining.length; i += 2) {
+        const left = remaining[i];
+        const right = i + 1 < remaining.length ? remaining[i + 1] : remaining[i];
         nextLevel.push(sha256d(Buffer.concat([left, right])));
       }
       hashes = nextLevel;

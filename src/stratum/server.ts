@@ -303,50 +303,52 @@ export class StratumServer extends EventEmitter {
     // Generate extranonce2 candidates (original + byte-reversed for Avalon/Canaan)
     const ext2Candidates = this.getExt2Candidates(extranonce2Hex, session.extranonce2Size);
 
-    // Generate nonce candidates: standard (BE hex→uint32) + reversed (LE hex for Avalon Nano 3)
-    const nonceRevBuf = Buffer.from(nonceHex.padStart(8, '0'), 'hex');
-    const nonceReversedHex = reverseBuffer(nonceRevBuf).toString('hex');
-    const nonceCandidates = [nonceHex];
-    if (nonceReversedHex !== nonceHex) nonceCandidates.push(nonceReversedHex);
+    // Generate nTime candidates (original + job nTime + time offsets)
+    const nTimeCandidates = this.getNTimeCandidates(nTimeHex, job.nTimeHex);
 
-    // Evaluate all version × ext2 × nonce combinations
+    // Generate nonce candidates: standard (BE) + reversed (LE) + word-swapped (Avalon)
+    const nonceCandidates = this.getNonceCandidates(nonceHex);
+
+    // Evaluate all version × ext2 × nTime × nonce combinations
     primaryLoop: for (const ext2 of ext2Candidates) {
       const cbTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
       const cbTxIdLE = sha256d(Buffer.from(cbTxHex, 'hex'));
       const mRoot = calculateMerkleRoot(cbTxIdLE, job.merkleBranchHex);
 
       for (const ver of versionCandidates) {
-        for (const nonce of nonceCandidates) {
-          const header = buildBlockHeader({
-            version: ver,
-            prevHashRawHex: job.prevHashRaw,
-            merkleRootBE: mRoot,
-            nTimeHex,
-            nBitsHex: job.nBitsHex,
-            nonceHex: nonce,
-          });
-          const headerHashLE = sha256d(header);
-          const headerHashBE = reverseBuffer(headerHashLE);
-          const hashBigInt = bufferToBigIntBE(headerHashBE);
+        for (const nTime of nTimeCandidates) {
+          for (const nonce of nonceCandidates) {
+            const header = buildBlockHeader({
+              version: ver,
+              prevHashRawHex: job.prevHashRaw,
+              merkleRootBE: mRoot,
+              nTimeHex: nTime,
+              nBitsHex: job.nBitsHex,
+              nonceHex: nonce,
+            });
+            const headerHashLE = sha256d(header);
+            const headerHashBE = reverseBuffer(headerHashLE);
+            const hashBigInt = bufferToBigIntBE(headerHashBE);
 
-          if (hashBigInt <= minerTarget) {
-            finalHeader = header;
-            finalHashLE = headerHashLE;
-            finalHashBE = headerHashBE;
-            finalHashBigInt = hashBigInt;
-            finalShareDiff = hashToDifficulty(headerHashLE);
-            accepted = true;
-            matchedCoinbaseTxHex = cbTxHex;
-            break primaryLoop;
-          }
+            if (hashBigInt <= minerTarget) {
+              finalHeader = header;
+              finalHashLE = headerHashLE;
+              finalHashBE = headerHashBE;
+              finalHashBigInt = hashBigInt;
+              finalShareDiff = hashToDifficulty(headerHashLE);
+              accepted = true;
+              matchedCoinbaseTxHex = cbTxHex;
+              break primaryLoop;
+            }
 
-          const candDiff = hashToDifficulty(headerHashLE);
-          if (candDiff > finalShareDiff) {
-            finalHeader = header;
-            finalHashLE = headerHashLE;
-            finalHashBE = headerHashBE;
-            finalHashBigInt = hashBigInt;
-            finalShareDiff = candDiff;
+            const candDiff = hashToDifficulty(headerHashLE);
+            if (candDiff > finalShareDiff) {
+              finalHeader = header;
+              finalHashLE = headerHashLE;
+              finalHashBE = headerHashBE;
+              finalHashBigInt = hashBigInt;
+              finalShareDiff = candDiff;
+            }
           }
         }
       }
@@ -604,6 +606,16 @@ export class StratumServer extends EventEmitter {
     try {
       const buf = Buffer.from(padded, 'hex');
       candidates.add(reverseBuffer(buf).toString('hex'));
+
+      if (padded.length === 8) {
+        // 16-bit word swap (first 2 bytes <-> last 2 bytes) for Avalon Nano 3 / Canaan
+        const wordSwapped = padded.substring(4) + padded.substring(0, 4);
+        candidates.add(wordSwapped);
+        try {
+          const wordSwappedBuf = Buffer.from(wordSwapped, 'hex');
+          candidates.add(reverseBuffer(wordSwappedBuf).toString('hex'));
+        } catch (e) {}
+      }
     } catch (e) {}
 
     return Array.from(candidates);
