@@ -21,6 +21,7 @@ export interface PoolConfig {
   coinbaseText: string;
   poolFeePercent: number;
   poolFeeAddress: string;
+  enableVardiff: boolean;
 }
 
 export const config: PoolConfig = {
@@ -41,4 +42,5 @@ export const config: PoolConfig = {
   coinbaseText: process.env.COINBASE_TEXT || '/ntpool/',
   poolFeePercent: parseFloat(process.env.POOL_FEE_PERCENT || '0.0'),
   poolFeeAddress: process.env.POOL_FEE_ADDRESS || '',
+  enableVardiff: process.env.ENABLE_VARDIFF === 'true' || process.env.ENABLE_VARDIFF === '1',
 };

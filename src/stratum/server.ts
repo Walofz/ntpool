@@ -324,14 +324,11 @@ export class StratumServer extends EventEmitter {
     for (const session of this.sessions.values()) {
       session.resetBestShare();
     }
-    console.log(`[Pool] 🔄 Block height changed / Block found - Reset Best Share to 0 for all workers.`);
+    console.log(`[Pool] 🎉 Solo Block Found! Resetting Best Share to 0 for all workers.`);
     this.emit('stats_updated');
   }
 
   public broadcastJob(job: MiningJob, cleanJobs = true): void {
-    if (job.blockHeight !== this.lastBroadcastHeight && this.lastBroadcastHeight > 0) {
-      this.resetAllBestShares();
-    }
     this.lastBroadcastHeight = job.blockHeight;
 
     for (const session of this.sessions.values()) {

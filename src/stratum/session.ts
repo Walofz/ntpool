@@ -90,6 +90,8 @@ export class StratumSession {
    * Uses 45-second cooldown and gentle 15% step limits for maximum stability
    */
   private calculateVardiff(now: number): number | null {
+    if (!config.enableVardiff) return null;
+
     const oldest = this.shareHistory[0];
     const newest = this.shareHistory[this.shareHistory.length - 1];
     const timeDeltaSec = (newest.timestamp - oldest.timestamp) / 1000;
