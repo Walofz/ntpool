@@ -116,7 +116,7 @@ export class JobManager {
     const coinbase = buildCoinbaseTransaction({
       blockHeight: template.height,
       coinbaseValue: template.coinbasevalue,
-      minerAddress: config.poolFeeAddress || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+      minerAddress: config.walletAddress || config.poolFeeAddress || 'AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr',
       extranonce1Size: 4,
       extranonce2Size: 4,
       defaultWitnessCommitment: template.default_witness_commitment,
