@@ -29,13 +29,17 @@ export class JobManager {
    * Format prevhash into standard Stratum 8x32-bit word Little-Endian format
    */
   private formatPrevHashForStratum(prevHashHex: string): string {
-    const buf = Buffer.from(prevHashHex, 'hex');
-    const swapped = Buffer.alloc(32);
-    for (let i = 0; i < 8; i++) {
-      const word = buf.readUInt32BE(i * 4);
-      swapped.writeUInt32LE(word, i * 4);
+    const b = Buffer.from(prevHashHex, 'hex');
+    const bLE = reverseBuffer(b);
+    for (let i = 0; i < bLE.length; i += 4) {
+      const t0 = bLE[i];
+      const t1 = bLE[i + 1];
+      bLE[i] = bLE[i + 3];
+      bLE[i + 1] = bLE[i + 2];
+      bLE[i + 2] = t1;
+      bLE[i + 3] = t0;
     }
-    return swapped.toString('hex');
+    return bLE.toString('hex');
   }
 
   /**
