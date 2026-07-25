@@ -48,6 +48,8 @@ export class StratumSession {
     this.extranonce1 = extranonce1;
   }
 
+  private lastVardiffTime = Date.now();
+
   /**
    * Reset Best Share difficulty to 0 (e.g. when a block is found)
    */
@@ -55,9 +57,6 @@ export class StratumSession {
     this.bestShareDiff = 0;
   }
 
-  /**
-   * Record share for Vardiff calculation
-   */
   /**
    * Record share for Vardiff calculation and hashrate tracking
    */
@@ -78,9 +77,9 @@ export class StratumSession {
     const tenMinAgo = now - 600000;
     this.shareHistory = this.shareHistory.filter((s) => s.timestamp >= tenMinAgo);
 
-    // Calculate Vardiff adjustment every 5 shares
-    if (this.shareHistory.length >= 5 && this.shareHistory.length % 5 === 0) {
-      return this.calculateVardiff();
+    // Evaluate Vardiff at most once every 45 seconds (CKPool standard retarget interval)
+    if (now - this.lastVardiffTime >= 45000 && this.shareHistory.length >= 10) {
+      return this.calculateVardiff(now);
     }
 
     return null;
@@ -88,31 +87,31 @@ export class StratumSession {
 
   /**
    * Compute new difficulty based on share submission rate (target ~12 shares / min)
-   * Uses smooth dampening to avoid rejecting valid shares during difficulty transitions
+   * Uses 45-second cooldown and gentle 15% step limits for maximum stability
    */
-  private calculateVardiff(): number | null {
-    if (this.shareHistory.length < 10) return null;
-
+  private calculateVardiff(now: number): number | null {
     const oldest = this.shareHistory[0];
     const newest = this.shareHistory[this.shareHistory.length - 1];
     const timeDeltaSec = (newest.timestamp - oldest.timestamp) / 1000;
 
-    // Must have at least 15 seconds of history to judge rate accurately
-    if (timeDeltaSec < 15) return null;
+    // Must have at least 30 seconds of share history
+    if (timeDeltaSec < 30) return null;
 
     const sharesPerMin = (this.shareHistory.length / timeDeltaSec) * 60;
     const targetRate = config.vardiffTargetShares || 12; // 12 shares/min
 
     let ratio = sharesPerMin / targetRate;
 
-    // Smooth dampening: max +/- 25% adjustment per step
-    ratio = Math.max(0.75, Math.min(1.25, ratio));
-
-    if (ratio > 1.15 || ratio < 0.85) {
+    // Only adjust if submission rate is significantly off (< 0.6x or > 1.6x)
+    if (ratio < 0.6 || ratio > 1.6) {
+      // Gentle step limit: max +/- 15% adjustment per 45s retarget
+      ratio = Math.max(0.85, Math.min(1.15, ratio));
       let newDiff = Math.round(this.currentDiff * ratio);
       newDiff = Math.max(config.minDiff, Math.min(config.maxDiff, newDiff));
-      if (Math.abs(newDiff - this.currentDiff) >= 16) {
+
+      if (Math.abs(newDiff - this.currentDiff) >= 32) {
         this.currentDiff = newDiff;
+        this.lastVardiffTime = now;
         return newDiff;
       }
     }
