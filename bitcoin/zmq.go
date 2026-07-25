@@ -64,7 +64,9 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 			continue
 		}
 
-		z.readLoop(conn)
+		if err := z.readLoop(conn); err != nil {
+			log.Printf("[ZMQ Go] Read loop ended: %v. Reconnecting...", err)
+		}
 		conn.Close()
 		time.Sleep(3 * time.Second)
 	}
@@ -96,8 +98,10 @@ func (z *ZmqBlockSubscriber) handshakeAndSubscribe(conn net.Conn) error {
 		return err
 	}
 
-	// Read server READY
-	_, _ = z.readZmtpFrame(conn)
+	// Read server READY command/message frame(s)
+	if _, err := z.readZmtpMessage(conn); err != nil {
+		return err
+	}
 
 	// 3. Send Subscribe command for "hashblock" topic
 	subTopic := append([]byte{0x01}, []byte("hashblock")...)
@@ -123,55 +127,86 @@ func (z *ZmqBlockSubscriber) buildZmtpFrame(data []byte, hasMore bool) []byte {
 		return frame
 	}
 
-	frame := make([]byte, 10+len(data))
+	frame := make([]byte, 9+len(data))
 	frame[0] = flag | 0x02 // Long frame
-	binary.BigEndian.PutUint64(frame[2:10], uint64(len(data)))
-	copy(frame[10:], data)
+	binary.BigEndian.PutUint64(frame[1:9], uint64(len(data)))
+	copy(frame[9:], data)
 	return frame
 }
 
-func (z *ZmqBlockSubscriber) readZmtpFrame(conn net.Conn) ([]byte, error) {
-	header := make([]byte, 2)
-	if _, err := io.ReadFull(conn, header); err != nil {
-		return nil, err
+func (z *ZmqBlockSubscriber) readZmtpFrame(conn net.Conn) ([]byte, bool, error) {
+	flagBuf := make([]byte, 1)
+	if _, err := io.ReadFull(conn, flagBuf); err != nil {
+		return nil, false, err
 	}
+
+	flags := flagBuf[0]
+	hasMore := (flags & 0x01) != 0
+	isLong := (flags & 0x02) != 0
 
 	var dataLen uint64
-	var offset int
-	if header[0]&0x02 != 0 {
-		longHeader := make([]byte, 8)
-		if _, err := io.ReadFull(conn, longHeader); err != nil {
-			return nil, err
+	if isLong {
+		lenBuf := make([]byte, 8)
+		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+			return nil, false, err
 		}
-		dataLen = binary.BigEndian.Uint64(longHeader)
-		offset = 10
+		dataLen = binary.BigEndian.Uint64(lenBuf)
 	} else {
-		dataLen = uint64(header[1])
-		offset = 2
+		lenBuf := make([]byte, 1)
+		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+			return nil, false, err
+		}
+		dataLen = uint64(lenBuf[0])
 	}
 
-	_ = offset
 	data := make([]byte, dataLen)
 	if _, err := io.ReadFull(conn, data); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return data, nil
+
+	return data, hasMore, nil
 }
 
-func (z *ZmqBlockSubscriber) readLoop(conn net.Conn) {
+func (z *ZmqBlockSubscriber) readZmtpMessage(conn net.Conn) ([][]byte, error) {
+	frames := make([][]byte, 0, 3)
 	for {
-		frame, err := z.readZmtpFrame(conn)
+		frame, hasMore, err := z.readZmtpFrame(conn)
 		if err != nil {
-			return
+			return nil, err
+		}
+		frames = append(frames, frame)
+		if !hasMore {
+			break
+		}
+	}
+	return frames, nil
+}
+
+func (z *ZmqBlockSubscriber) readLoop(conn net.Conn) error {
+	for {
+		msgFrames, err := z.readZmtpMessage(conn)
+		if err != nil {
+			return err
 		}
 
-		// Check block hash content (32 bytes)
-		if len(frame) == 32 {
-			hashHex := hex.EncodeToString(frame)
-			log.Printf("⚡ [ZMQ Instant Notification] New Block Detected on Network! (Hash: %s)", hashHex)
-			if z.onBlockFound != nil {
-				z.onBlockFound(hashHex)
-			}
+		if len(msgFrames) < 2 {
+			continue
+		}
+
+		topic := string(msgFrames[0])
+		if topic != "hashblock" {
+			continue
+		}
+
+		hashBytes := msgFrames[1]
+		if len(hashBytes) != 32 {
+			continue
+		}
+
+		hashHex := hex.EncodeToString(hashBytes)
+		log.Printf("⚡ [ZMQ Instant Notification] New Block Detected on Network! (Hash: %s)", hashHex)
+		if z.onBlockFound != nil {
+			z.onBlockFound(hashHex)
 		}
 	}
 }
