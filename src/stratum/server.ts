@@ -271,6 +271,12 @@ export class StratumServer extends EventEmitter {
       if (extranonce2Hex.length === 8) {
         const wordSwapped = extranonce2Hex.substring(4) + extranonce2Hex.substring(0, 4);
         if (!ext2Candidates.includes(wordSwapped)) ext2Candidates.push(wordSwapped);
+
+        const first2LE = reverseBuffer(Buffer.from(extranonce2Hex.substring(0, 4), 'hex')).toString('hex') + '0000';
+        if (!ext2Candidates.includes(first2LE)) ext2Candidates.push(first2LE);
+
+        const first2Padded = '0000' + reverseBuffer(Buffer.from(extranonce2Hex.substring(0, 4), 'hex')).toString('hex');
+        if (!ext2Candidates.includes(first2Padded)) ext2Candidates.push(first2Padded);
       }
 
       const nTimeInt = parseInt(nTimeHex, 16);
