@@ -282,15 +282,8 @@ export class StratumServer extends EventEmitter {
       return this.sendResponse(session, id, false, { code: 21, message: 'Stale block height' });
     }
 
-    // Reconstruct full coinbase tx matching Go code
+    // Default coinbase for block submission (will be updated if ext2 candidate matches)
     const coinbaseTxHex = `${job.coinb1}${session.extranonce1}${extranonce2Hex}${job.coinb2}`;
-    const coinbaseTxBuf = Buffer.from(coinbaseTxHex, 'hex');
-
-    // Coinbase TxID (SHA-256d)
-    const coinbaseTxIdLE = sha256d(coinbaseTxBuf);
-
-    // Calculate Merkle Root
-    const merkleRootBE = calculateMerkleRoot(coinbaseTxIdLE, job.merkleBranchHex);
 
     // Generate version candidates covering AsicBoost (BIP310 / overt AsicBoost / Canaan / LE versionBits)
     const versionCandidates = this.getVersionCandidates(job.versionHex, versionBitsHex, session.versionRollingMask);
@@ -305,58 +298,55 @@ export class StratumServer extends EventEmitter {
     let finalHashBigInt = 0n;
     let finalShareDiff = 0;
     let accepted = false;
+    let matchedCoinbaseTxHex = coinbaseTxHex;
 
-    // Fast Primary Evaluation: Check version & extranonce2 candidates with standard & LE options
+    // Generate extranonce2 candidates (original + byte-reversed)
     const ext2Candidates = this.getExt2Candidates(extranonce2Hex, session.extranonce2Size);
 
+    // Evaluate all version × ext2 combinations
     primaryLoop: for (const ext2 of ext2Candidates) {
-      const coinbaseTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
-      const coinbaseTxIdLE = sha256d(Buffer.from(coinbaseTxHex, 'hex'));
-      const merkleRootBE = calculateMerkleRoot(coinbaseTxIdLE, job.merkleBranchHex);
+      const cbTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
+      const cbTxIdLE = sha256d(Buffer.from(cbTxHex, 'hex'));
+      const mRoot = calculateMerkleRoot(cbTxIdLE, job.merkleBranchHex);
 
       for (const ver of versionCandidates) {
-        for (const swapNonce of [true, false]) {
-          for (const swapNTime of [true, false]) {
-            const header = buildBlockHeader({
-              version: ver,
-              prevHashRawHex: job.prevHashRaw,
-              merkleRootBE,
-              nTimeHex,
-              nBitsHex: job.nBitsHex,
-              nonceHex,
-              swapNonceBE: swapNonce,
-              swapNTimeBE: swapNTime,
-            });
-            const headerHashLE = sha256d(header);
-            const headerHashBE = reverseBuffer(headerHashLE);
-            const hashBigInt = bufferToBigIntBE(headerHashBE);
+        const header = buildBlockHeader({
+          version: ver,
+          prevHashRawHex: job.prevHashRaw,
+          merkleRootBE: mRoot,
+          nTimeHex,
+          nBitsHex: job.nBitsHex,
+          nonceHex,
+        });
+        const headerHashLE = sha256d(header);
+        const headerHashBE = reverseBuffer(headerHashLE);
+        const hashBigInt = bufferToBigIntBE(headerHashBE);
 
-            if (hashBigInt <= minerTarget) {
-              finalHeader = header;
-              finalHashLE = headerHashLE;
-              finalHashBE = headerHashBE;
-              finalHashBigInt = hashBigInt;
-              finalShareDiff = hashToDifficulty(headerHashLE);
-              accepted = true;
-              break primaryLoop;
-            }
+        if (hashBigInt <= minerTarget) {
+          finalHeader = header;
+          finalHashLE = headerHashLE;
+          finalHashBE = headerHashBE;
+          finalHashBigInt = hashBigInt;
+          finalShareDiff = hashToDifficulty(headerHashLE);
+          accepted = true;
+          matchedCoinbaseTxHex = cbTxHex;
+          break primaryLoop;
+        }
 
-            const candDiff = hashToDifficulty(headerHashLE);
-            if (candDiff > finalShareDiff) {
-              finalHeader = header;
-              finalHashLE = headerHashLE;
-              finalHashBE = headerHashBE;
-              finalHashBigInt = hashBigInt;
-              finalShareDiff = candDiff;
-            }
-          }
+        const candDiff = hashToDifficulty(headerHashLE);
+        if (candDiff > finalShareDiff) {
+          finalHeader = header;
+          finalHashLE = headerHashLE;
+          finalHashBE = headerHashBE;
+          finalHashBigInt = hashBigInt;
+          finalShareDiff = candDiff;
         }
       }
     }
 
     if (!accepted) {
       session.rejectedShares++;
-      console.log(`[Share REJECTED] Worker: ${session.workerName}, Achieved Diff: ${finalShareDiff.toFixed(6)}, Required: ${session.currentDiff}, verBits: ${versionBitsHex}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}`);
+      console.log(`[Share REJECTED] Worker: ${session.workerName}, Diff: ${finalShareDiff.toFixed(6)}, Required: ${session.currentDiff}, verBits: ${versionBitsHex}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}, jobVer: ${job.versionHex}`);
       return this.sendResponse(session, id, false, {
         code: 23,
         message: `Low difficulty share (Achieved diff ${finalShareDiff.toFixed(2)} < required ${session.currentDiff})`,
@@ -382,7 +372,7 @@ export class StratumServer extends EventEmitter {
 
       this.resetAllBestShares();
 
-      const blockHex = this.buildFullBlockHex(finalHeader, coinbaseTxHex, job.txsData);
+      const blockHex = this.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.txsData);
 
       try {
         const result = await this.bitcoinRpc.submitBlock(blockHex);

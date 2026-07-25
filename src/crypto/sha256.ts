@@ -112,6 +112,20 @@ export function calculateAsicBoostVersion(
 
 /**
  * Construct 80-byte Bitcoin Block Header Buffer
+ *
+ * Bitcoin block header layout (80 bytes):
+ *   [0..3]   version       (uint32 LE)
+ *   [4..35]  prevHash      (32 bytes, internal byte order = LE of the hash)
+ *   [36..67] merkleRoot    (32 bytes, internal byte order)
+ *   [68..71] nTime         (uint32 LE)
+ *   [72..75] nBits         (uint32 LE)
+ *   [76..79] nonce         (uint32 LE)
+ *
+ * Stratum v1 miners send nTime and nonce as big-endian hex strings
+ * representing uint32 values. We parse them to integers and write LE.
+ *
+ * prevHashRawHex is the RPC previousblockhash (big-endian display order).
+ * For the header we need it in internal byte order (reversed = LE).
  */
 export function buildBlockHeader(params: {
   version: number;
@@ -120,43 +134,30 @@ export function buildBlockHeader(params: {
   nTimeHex: string;
   nBitsHex: string;
   nonceHex: string;
-  swapVersionBE?: boolean;
-  swapNonceBE?: boolean;
-  swapNTimeBE?: boolean;
 }): Buffer {
   const header = Buffer.alloc(80);
 
-  // 1. Version (4 bytes LE or BE)
-  if (params.swapVersionBE) {
-    header.writeUInt32BE(params.version >>> 0, 0);
-  } else {
-    header.writeUInt32LE(params.version >>> 0, 0);
-  }
+  // 1. Version (uint32 LE)
+  header.writeUInt32LE(params.version >>> 0, 0);
 
-  // 2. PrevHash (32 bytes reversed)
-  reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex')).copy(header, 4);
+  // 2. PrevHash: RPC gives BE display order, header needs LE (reversed)
+  const prevHashBE = Buffer.from(params.prevHashRawHex, 'hex');
+  reverseBuffer(prevHashBE).copy(header, 4);
 
-  // 3. Merkle Root (32 bytes LE)
+  // 3. Merkle Root: sha256d output is already in internal byte order
   params.merkleRootBE.copy(header, 36);
 
-  // 4. nTime (4 bytes LE or BE)
-  const nTimeBuf = Buffer.from(params.nTimeHex.padStart(8, '0'), 'hex');
-  if (params.swapNTimeBE === false) {
-    nTimeBuf.copy(header, 68);
-  } else {
-    reverseBuffer(nTimeBuf).copy(header, 68);
-  }
+  // 4. nTime: parse hex string as uint32 and write LE
+  const nTimeVal = parseInt(params.nTimeHex, 16) >>> 0;
+  header.writeUInt32LE(nTimeVal, 68);
 
-  // 5. nBits (4 bytes reversed)
-  reverseBuffer(Buffer.from(params.nBitsHex.padStart(8, '0'), 'hex')).copy(header, 72);
+  // 5. nBits: parse hex string as uint32 and write LE
+  const nBitsVal = parseInt(params.nBitsHex, 16) >>> 0;
+  header.writeUInt32LE(nBitsVal, 72);
 
-  // 6. Nonce (4 bytes LE or BE)
-  const nonceBuf = Buffer.from(params.nonceHex.padStart(8, '0'), 'hex');
-  if (params.swapNonceBE === false) {
-    nonceBuf.copy(header, 76);
-  } else {
-    reverseBuffer(nonceBuf).copy(header, 76);
-  }
+  // 6. Nonce: parse hex string as uint32 and write LE
+  const nonceVal = parseInt(params.nonceHex, 16) >>> 0;
+  header.writeUInt32LE(nonceVal, 76);
 
   return header;
 }

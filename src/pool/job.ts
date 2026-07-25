@@ -46,16 +46,24 @@ export class JobManager {
   }
 
   /**
-   * Calculate Merkle Tree Branch hashes for Stratum (for Coinbase at index 0)
+   * Calculate Merkle Tree Branch hashes for Stratum v1 (for Coinbase at index 0)
+   *
+   * Standard algorithm: The branch contains the sibling hashes needed to
+   * compute the merkle root from the coinbase txid.
+   * At each tree level, the coinbase path is always index 0, so we take
+   * the sibling at index 1, then reduce the remaining hashes pairwise.
    */
   private calculateMerkleBranch(txs: any[]): string[] {
     if (!txs || txs.length === 0) return [];
 
+    // Convert all non-coinbase tx hashes to internal byte order (LE)
     let hashes: Buffer[] = txs.map((tx) => {
       const hashStr = typeof tx === 'string' ? tx : (tx.hash || tx.txid);
       if (hashStr) {
+        // getblocktemplate returns txid in BE display order, reverse to LE internal
         return reverseBuffer(Buffer.from(hashStr, 'hex'));
       }
+      // Fallback: compute txid from raw tx data
       const rawTx = Buffer.from(tx.data, 'hex');
       return sha256d(rawTx);
     });
@@ -63,12 +71,14 @@ export class JobManager {
     const branch: string[] = [];
 
     while (hashes.length > 0) {
+      // The sibling of coinbase (index 0) is hashes[0] (first non-coinbase tx)
       branch.push(hashes[0].toString('hex'));
 
       if (hashes.length === 1) break;
 
+      // Reduce level: hash pairs [0,1], [2,3], [4,5], ...
       const nextLevel: Buffer[] = [];
-      for (let i = 1; i < hashes.length; i += 2) {
+      for (let i = 0; i < hashes.length; i += 2) {
         const left = hashes[i];
         const right = i + 1 < hashes.length ? hashes[i + 1] : hashes[i];
         nextLevel.push(sha256d(Buffer.concat([left, right])));
