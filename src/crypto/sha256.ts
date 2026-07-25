@@ -137,29 +137,26 @@ export function buildBlockHeader(params: {
   // 3. Merkle Root (32 bytes, Little Endian)
   params.merkleRootBE.copy(header, 36);
 
-  // 4. nTime (4 bytes, Little Endian)
+  // 4. nTime (4 bytes, raw hex bytes)
   const nTimeBuf = Buffer.from(params.nTimeHex, 'hex');
   if (nTimeBuf.length === 4) {
-    const nTime = nTimeBuf.readUInt32BE(0);
-    header.writeUInt32LE(nTime, 68);
+    nTimeBuf.copy(header, 68);
   } else {
     header.writeUInt32LE(parseInt(params.nTimeHex, 16), 68);
   }
 
-  // 5. nBits (4 bytes, Little Endian)
+  // 5. nBits (4 bytes, raw hex bytes)
   const nBitsBuf = Buffer.from(params.nBitsHex, 'hex');
   if (nBitsBuf.length === 4) {
-    const nBits = nBitsBuf.readUInt32BE(0);
-    header.writeUInt32LE(nBits, 72);
+    nBitsBuf.copy(header, 72);
   } else {
     header.writeUInt32LE(parseInt(params.nBitsHex, 16), 72);
   }
 
-  // 6. Nonce (4 bytes, Little Endian)
+  // 6. Nonce (4 bytes, raw hex bytes)
   const nonceBuf = Buffer.from(params.nonceHex, 'hex');
   if (nonceBuf.length === 4) {
-    const nonce = nonceBuf.readUInt32BE(0);
-    header.writeUInt32LE(nonce, 76);
+    nonceBuf.copy(header, 76);
   } else {
     header.writeUInt32LE(parseInt(params.nonceHex, 16), 76);
   }
