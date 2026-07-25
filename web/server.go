@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -19,6 +21,8 @@ type WebDashboardServer struct {
 	stratumServer *stratum.StratumServer
 	jobManager    *pool.JobManager
 	upgrader      websocket.Upgrader
+	clients       map[*websocket.Conn]bool
+	mu            sync.Mutex
 }
 
 func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumServer, jm *pool.JobManager) *WebDashboardServer {
@@ -26,6 +30,7 @@ func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumSer
 		cfg:           cfg,
 		stratumServer: stratumServer,
 		jobManager:    jm,
+		clients:       make(map[*websocket.Conn]bool),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -86,6 +91,28 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 	}
 }
 
+func (w *WebDashboardServer) startBroadcaster() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		statsData, err := json.Marshal(w.calculatePoolStats())
+		if err != nil {
+			continue
+		}
+
+		w.mu.Lock()
+		for client := range w.clients {
+			err := client.WriteMessage(websocket.TextMessage, statsData)
+			if err != nil {
+				client.Close()
+				delete(w.clients, client)
+			}
+		}
+		w.mu.Unlock()
+	}
+}
+
 func (w *WebDashboardServer) Start() error {
 	http.Handle("/", http.FileServer(http.Dir("./public")))
 
@@ -99,19 +126,30 @@ func (w *WebDashboardServer) Start() error {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+
+		w.mu.Lock()
+		w.clients[conn] = true
+		w.mu.Unlock()
+
+		defer func() {
+			w.mu.Lock()
+			delete(w.clients, conn)
+			w.mu.Unlock()
+			conn.Close()
+		}()
 
 		// Send initial stats
 		initialData, _ := json.Marshal(w.calculatePoolStats())
-		conn.WriteMessage(websocket.TextMessage, initialData)
+		_ = conn.WriteMessage(websocket.TextMessage, initialData)
 
 		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
+			if _, _, err := conn.ReadMessage(); err != nil {
 				break
 			}
 		}
 	})
+
+	go w.startBroadcaster()
 
 	addr := fmt.Sprintf(":%d", w.cfg.WebPort)
 	log.Printf("[Web Dashboard Go] Server running at http://localhost:%d", w.cfg.WebPort)
