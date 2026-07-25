@@ -103,11 +103,18 @@ export class BitcoinRpcClient {
   }
 
   public async getBlockTemplate(): Promise<BlockTemplate> {
-    return this.call<BlockTemplate>('getblocktemplate', [
-      {
-        rules: ['segwit'],
-      },
-    ]);
+    const params: any = {
+      rules: ['segwit'],
+      algo: process.env.RPC_ALGO || 'sha256d',
+    };
+
+    try {
+      return await this.call<BlockTemplate>('getblocktemplate', [params]);
+    } catch (err: any) {
+      // Fallback if node does not accept 'algo' parameter (e.g. Bitcoin Core)
+      delete params.algo;
+      return await this.call<BlockTemplate>('getblocktemplate', [params]);
+    }
   }
 
   public async submitBlock(hexData: string): Promise<string | null> {

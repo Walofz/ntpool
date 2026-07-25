@@ -170,8 +170,9 @@ export function buildCoinbaseTransaction(params: {
   // Height push
   const heightPushBuf = encodeBip34Height(params.blockHeight);
 
-  // Pool Signature text
-  const poolTextBuf = Buffer.from(config.coinbaseText, 'utf8');
+  // Pool Signature text with OP_PUSH length prefix
+  const rawPoolTextBuf = Buffer.from(config.coinbaseText, 'utf8');
+  const poolTextBuf = Buffer.concat([Buffer.from([rawPoolTextBuf.length]), rawPoolTextBuf]);
 
   // Part of coinbase script BEFORE extranonce1
   const scriptPrefix = Buffer.concat([heightPushBuf, poolTextBuf]);
