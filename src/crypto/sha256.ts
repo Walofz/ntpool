@@ -121,6 +121,8 @@ export function buildBlockHeader(params: {
   nBitsHex: string;
   nonceHex: string;
   swapVersionBE?: boolean;
+  swapNonceBE?: boolean;
+  swapNTimeBE?: boolean;
 }): Buffer {
   const header = Buffer.alloc(80);
 
@@ -137,14 +139,24 @@ export function buildBlockHeader(params: {
   // 3. Merkle Root (32 bytes LE)
   params.merkleRootBE.copy(header, 36);
 
-  // 4. nTime (4 bytes reversed)
-  reverseBuffer(Buffer.from(params.nTimeHex, 'hex')).copy(header, 68);
+  // 4. nTime (4 bytes LE or BE)
+  const nTimeBuf = Buffer.from(params.nTimeHex.padStart(8, '0'), 'hex');
+  if (params.swapNTimeBE === false) {
+    nTimeBuf.copy(header, 68);
+  } else {
+    reverseBuffer(nTimeBuf).copy(header, 68);
+  }
 
   // 5. nBits (4 bytes reversed)
-  reverseBuffer(Buffer.from(params.nBitsHex, 'hex')).copy(header, 72);
+  reverseBuffer(Buffer.from(params.nBitsHex.padStart(8, '0'), 'hex')).copy(header, 72);
 
-  // 6. Nonce (4 bytes reversed)
-  reverseBuffer(Buffer.from(params.nonceHex, 'hex')).copy(header, 76);
+  // 6. Nonce (4 bytes LE or BE)
+  const nonceBuf = Buffer.from(params.nonceHex.padStart(8, '0'), 'hex');
+  if (params.swapNonceBE === false) {
+    nonceBuf.copy(header, 76);
+  } else {
+    reverseBuffer(nonceBuf).copy(header, 76);
+  }
 
   return header;
 }

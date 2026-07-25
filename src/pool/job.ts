@@ -49,10 +49,10 @@ export class JobManager {
    * Calculate Merkle Tree Branch hashes for Stratum (for Coinbase at index 0)
    */
   private calculateMerkleBranch(txs: any[]): string[] {
-    if (txs.length === 0) return [];
+    if (!txs || txs.length === 0) return [];
 
-    let currentLevel: Buffer[] = txs.map((tx) => {
-      const hashStr = tx.hash || tx.txid;
+    let hashes: Buffer[] = txs.map((tx) => {
+      const hashStr = typeof tx === 'string' ? tx : (tx.hash || tx.txid);
       if (hashStr) {
         return reverseBuffer(Buffer.from(hashStr, 'hex'));
       }
@@ -62,18 +62,18 @@ export class JobManager {
 
     const branch: string[] = [];
 
-    while (currentLevel.length > 0) {
-      branch.push(currentLevel[0].toString('hex'));
+    while (hashes.length > 0) {
+      branch.push(hashes[0].toString('hex'));
 
-      if (currentLevel.length === 1) break;
+      if (hashes.length === 1) break;
 
       const nextLevel: Buffer[] = [];
-      for (let i = 1; i < currentLevel.length; i += 2) {
-        const left = currentLevel[i];
-        const right = i + 1 < currentLevel.length ? currentLevel[i + 1] : currentLevel[i];
+      for (let i = 1; i < hashes.length; i += 2) {
+        const left = hashes[i];
+        const right = i + 1 < hashes.length ? hashes[i + 1] : hashes[i];
         nextLevel.push(sha256d(Buffer.concat([left, right])));
       }
-      currentLevel = nextLevel;
+      hashes = nextLevel;
     }
 
     return branch;

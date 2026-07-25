@@ -271,47 +271,59 @@ export class StratumServer extends EventEmitter {
     let finalShareDiff = 0;
     let accepted = false;
 
-    // Primary Evaluation: Try version candidates with standard coinbase/header assembly
-    for (const ver of versionCandidates) {
-      const header = buildBlockHeader({
-        version: ver,
-        prevHashRawHex: job.prevHashRaw,
-        merkleRootBE,
-        nTimeHex,
-        nBitsHex: job.nBitsHex,
-        nonceHex,
-      });
-      const headerHashLE = sha256d(header);
-      const headerHashBE = reverseBuffer(headerHashLE);
-      const hashBigInt = bufferToBigIntBE(headerHashBE);
+    // Primary Evaluation: Try version candidates with standard and LE nonce/nTime options
+    const primaryNonceOpts = [true, false];
+    const primaryNTimeOpts = [true, false];
 
-      if (hashBigInt <= minerTarget) {
-        finalHeader = header;
-        finalHashLE = headerHashLE;
-        finalHashBE = headerHashBE;
-        finalHashBigInt = hashBigInt;
-        finalShareDiff = hashToDifficulty(headerHashLE);
-        accepted = true;
-        break;
-      }
+    primaryLoop: for (const ver of versionCandidates) {
+      for (const swapNonce of primaryNonceOpts) {
+        for (const swapNTime of primaryNTimeOpts) {
+          const header = buildBlockHeader({
+            version: ver,
+            prevHashRawHex: job.prevHashRaw,
+            merkleRootBE,
+            nTimeHex,
+            nBitsHex: job.nBitsHex,
+            nonceHex,
+            swapNonceBE: swapNonce,
+            swapNTimeBE: swapNTime,
+          });
+          const headerHashLE = sha256d(header);
+          const headerHashBE = reverseBuffer(headerHashLE);
+          const hashBigInt = bufferToBigIntBE(headerHashBE);
 
-      // Track last computed diff for logging if rejected
-      if (finalShareDiff === 0) {
-        finalHeader = header;
-        finalHashLE = headerHashLE;
-        finalHashBE = headerHashBE;
-        finalHashBigInt = hashBigInt;
-        finalShareDiff = hashToDifficulty(headerHashLE);
+          if (hashBigInt <= minerTarget) {
+            finalHeader = header;
+            finalHashLE = headerHashLE;
+            finalHashBE = headerHashBE;
+            finalHashBigInt = hashBigInt;
+            finalShareDiff = hashToDifficulty(headerHashLE);
+            accepted = true;
+            break primaryLoop;
+          }
+
+          // Track best candidate diff for logging if rejected
+          const candDiff = hashToDifficulty(headerHashLE);
+          if (candDiff > finalShareDiff) {
+            finalHeader = header;
+            finalHashLE = headerHashLE;
+            finalHashBE = headerHashBE;
+            finalHashBigInt = hashBigInt;
+            finalShareDiff = candDiff;
+          }
+        }
       }
     }
 
-    // Comprehensive Fallback Search for non-standard ASIC miners (Avalon Nano / Canaan / AsicBoost variations)
+    // Comprehensive Fallback Search for non-standard ASIC & ESP32 miners (Avalon Nano / NerdMiner / LuckyMiner)
     if (!accepted) {
       const ext2Candidates = this.getExt2Candidates(extranonce2Hex, session.extranonce2Size);
       const nTimeCandidates = this.getNTimeCandidates(nTimeHex, job.nTimeHex);
       const nonceCandidates = this.getNonceCandidates(nonceHex);
       const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
       const swapVerBECandidates = [false, true];
+      const swapNonceBECandidates = [true, false];
+      const swapNTimeBECandidates = [true, false];
 
       // Pre-calculate Merkle Roots for each ext2Candidate
       const ext2MerkleRoots: Array<{ ext2: string; merkleRootBE: Buffer }> = [];
@@ -328,28 +340,43 @@ export class StratumServer extends EventEmitter {
             for (const prevH of prevHashCandidates) {
               for (const nt of nTimeCandidates) {
                 for (const non of nonceCandidates) {
-                  const altHeader = buildBlockHeader({
-                    version: ver,
-                    prevHashRawHex: prevH,
-                    merkleRootBE: altMerkleRootBE,
-                    nTimeHex: nt,
-                    nBitsHex: job.nBitsHex,
-                    nonceHex: non,
-                    swapVersionBE: swapVer,
-                  });
-                  const altHashLE = sha256d(altHeader);
-                  const altHashBE = reverseBuffer(altHashLE);
-                  const altHashBigInt = bufferToBigIntBE(altHashBE);
+                  for (const swapN of swapNonceBECandidates) {
+                    for (const swapNT of swapNTimeBECandidates) {
+                      const altHeader = buildBlockHeader({
+                        version: ver,
+                        prevHashRawHex: prevH,
+                        merkleRootBE: altMerkleRootBE,
+                        nTimeHex: nt,
+                        nBitsHex: job.nBitsHex,
+                        nonceHex: non,
+                        swapVersionBE: swapVer,
+                        swapNonceBE: swapN,
+                        swapNTimeBE: swapNT,
+                      });
+                      const altHashLE = sha256d(altHeader);
+                      const altHashBE = reverseBuffer(altHashLE);
+                      const altHashBigInt = bufferToBigIntBE(altHashBE);
 
-                  if (altHashBigInt <= minerTarget) {
-                    finalHeader = altHeader;
-                    finalHashLE = altHashLE;
-                    finalHashBE = altHashBE;
-                    finalHashBigInt = altHashBigInt;
-                    finalShareDiff = hashToDifficulty(altHashLE);
-                    accepted = true;
-                    console.log(`[Stratum] Fallback search matched share for worker ${session.workerName}! (ver: ${ver.toString(16)}, ext2: ${ext2}, nTime: ${nt}, nonce: ${non})`);
-                    break outer;
+                      if (altHashBigInt <= minerTarget) {
+                        finalHeader = altHeader;
+                        finalHashLE = altHashLE;
+                        finalHashBE = altHashBE;
+                        finalHashBigInt = altHashBigInt;
+                        finalShareDiff = hashToDifficulty(altHashLE);
+                        accepted = true;
+                        console.log(`[Stratum] Fallback search matched share for worker ${session.workerName}! (ver: ${ver.toString(16)}, ext2: ${ext2}, nTime: ${nt}, nonce: ${non})`);
+                        break outer;
+                      }
+
+                      const altDiff = hashToDifficulty(altHashLE);
+                      if (altDiff > finalShareDiff) {
+                        finalHeader = altHeader;
+                        finalHashLE = altHashLE;
+                        finalHashBE = altHashBE;
+                        finalHashBigInt = altHashBigInt;
+                        finalShareDiff = altDiff;
+                      }
+                    }
                   }
                 }
               }
