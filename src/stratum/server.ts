@@ -240,10 +240,11 @@ export class StratumServer extends EventEmitter {
       versionList.push(baseVersion);
     }
 
-    // 4. Targets & Multi-pass Header Endianness Verification
+    // 4. Targets & Comprehensive Multi-pass Header Verification
     const minerTarget = difficultyToTarget(session.currentDiff);
     const networkTarget = nbitsToTarget(job.nBitsHex);
 
+    const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
     const combinations = [
       { swapNonce: false, swapNtime: false },
       { swapNonce: true, swapNtime: false },
@@ -253,7 +254,7 @@ export class StratumServer extends EventEmitter {
 
     let bestHeader = buildBlockHeader({
       version: versionList[0],
-      prevHashRawHex: job.prevHashRaw,
+      prevHashRawHex: prevHashCandidates[0],
       merkleRootBE,
       nTimeHex,
       nBitsHex: job.nBitsHex,
@@ -268,38 +269,41 @@ export class StratumServer extends EventEmitter {
 
     for (const ver of versionList) {
       if (accepted) break;
-      for (const combo of combinations) {
-        const h = buildBlockHeader({
-          version: ver,
-          prevHashRawHex: job.prevHashRaw,
-          merkleRootBE,
-          nTimeHex,
-          nBitsHex: job.nBitsHex,
-          nonceHex,
-          swapNonceByteOrder: combo.swapNonce,
-          swapNtimeByteOrder: combo.swapNtime,
-        });
-        const hLE = sha256d(h);
-        const hBE = reverseBuffer(hLE);
-        const hBigInt = bufferToBigIntBE(hBE);
-        const diff = hashToDifficulty(hLE);
+      for (const prevHash of prevHashCandidates) {
+        if (accepted) break;
+        for (const combo of combinations) {
+          const h = buildBlockHeader({
+            version: ver,
+            prevHashRawHex: prevHash,
+            merkleRootBE,
+            nTimeHex,
+            nBitsHex: job.nBitsHex,
+            nonceHex,
+            swapNonceByteOrder: combo.swapNonce,
+            swapNtimeByteOrder: combo.swapNtime,
+          });
+          const hLE = sha256d(h);
+          const hBE = reverseBuffer(hLE);
+          const hBigInt = bufferToBigIntBE(hBE);
+          const diff = hashToDifficulty(hLE);
 
-        if (hBigInt <= minerTarget) {
-          bestHeader = h;
-          bestHashLE = hLE;
-          bestHashBE = hBE;
-          bestHashBigInt = hBigInt;
-          bestShareDiff = diff;
-          accepted = true;
-          break;
-        }
+          if (hBigInt <= minerTarget) {
+            bestHeader = h;
+            bestHashLE = hLE;
+            bestHashBE = hBE;
+            bestHashBigInt = hBigInt;
+            bestShareDiff = diff;
+            accepted = true;
+            break;
+          }
 
-        if (diff > bestShareDiff) {
-          bestHeader = h;
-          bestHashLE = hLE;
-          bestHashBE = hBE;
-          bestHashBigInt = hBigInt;
-          bestShareDiff = diff;
+          if (diff > bestShareDiff) {
+            bestHeader = h;
+            bestHashLE = hLE;
+            bestHashBE = hBE;
+            bestHashBigInt = hBigInt;
+            bestShareDiff = diff;
+          }
         }
       }
     }
@@ -313,7 +317,7 @@ export class StratumServer extends EventEmitter {
     // Check against miner difficulty
     if (hashBigInt > minerTarget) {
       session.rejectedShares++;
-      console.log(`[Share Rejected] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(4)}, Required Diff: ${session.currentDiff}`);
+      console.log(`[Share Rejected] Worker: ${session.workerName}, Achieved Diff: ${shareDiff.toFixed(6)}, Required: ${session.currentDiff}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}`);
       return this.sendResponse(session, id, false, {
         code: 23,
         message: `Low difficulty share (Achieved diff ${shareDiff.toFixed(2)} < required ${session.currentDiff})`,
