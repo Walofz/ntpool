@@ -120,13 +120,19 @@ export function buildBlockHeader(params: {
   nTimeHex: string;
   nBitsHex: string;
   nonceHex: string;
+  swapVersionByteOrder?: boolean;
+  swapMerkleByteOrder?: boolean;
   swapNonceByteOrder?: boolean;
   swapNtimeByteOrder?: boolean;
 }): Buffer {
   const header = Buffer.alloc(80);
 
-  // 1. Version (4 bytes, Little Endian)
-  header.writeUInt32LE(params.version >>> 0, 0);
+  // 1. Version (4 bytes)
+  if (params.swapVersionByteOrder) {
+    header.writeUInt32BE(params.version >>> 0, 0);
+  } else {
+    header.writeUInt32LE(params.version >>> 0, 0);
+  }
 
   // 2. PrevHash (32 bytes, Little Endian)
   const prevHashBuf = reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex'));
@@ -136,10 +142,14 @@ export function buildBlockHeader(params: {
     Buffer.alloc(32).copy(header, 4);
   }
 
-  // 3. Merkle Root (32 bytes, Little Endian)
-  params.merkleRootBE.copy(header, 36);
+  // 3. Merkle Root (32 bytes)
+  if (params.swapMerkleByteOrder) {
+    reverseBuffer(params.merkleRootBE).copy(header, 36);
+  } else {
+    params.merkleRootBE.copy(header, 36);
+  }
 
-  // 4. nTime (4 bytes, Little Endian)
+  // 4. nTime (4 bytes)
   if (params.swapNtimeByteOrder) {
     const nTimeBuf = Buffer.from(params.nTimeHex, 'hex');
     if (nTimeBuf.length === 4) nTimeBuf.copy(header, 68);
@@ -152,7 +162,7 @@ export function buildBlockHeader(params: {
   const nBits = parseInt(params.nBitsHex, 16);
   header.writeUInt32LE(nBits, 72);
 
-  // 6. Nonce (4 bytes, Little Endian)
+  // 6. Nonce (4 bytes)
   if (params.swapNonceByteOrder) {
     const nonceBuf = Buffer.from(params.nonceHex, 'hex');
     if (nonceBuf.length === 4) nonceBuf.copy(header, 76);

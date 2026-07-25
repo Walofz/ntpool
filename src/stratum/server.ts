@@ -245,12 +245,22 @@ export class StratumServer extends EventEmitter {
     const networkTarget = job.targetHex ? bufferToBigIntBE(Buffer.from(job.targetHex, 'hex')) : nbitsToTarget(job.nBitsHex);
 
     const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
-    const combinations = [
-      { swapNonce: false, swapNtime: false },
-      { swapNonce: true, swapNtime: false },
-      { swapNonce: false, swapNtime: true },
-      { swapNonce: true, swapNtime: true },
-    ];
+    const combinations: Array<{
+      swapVersion: boolean;
+      swapMerkle: boolean;
+      swapNonce: boolean;
+      swapNtime: boolean;
+    }> = [];
+
+    for (const swapVersion of [false, true]) {
+      for (const swapMerkle of [false, true]) {
+        for (const swapNonce of [false, true]) {
+          for (const swapNtime of [false, true]) {
+            combinations.push({ swapVersion, swapMerkle, swapNonce, swapNtime });
+          }
+        }
+      }
+    }
 
     let bestHeader = buildBlockHeader({
       version: versionList[0],
@@ -279,6 +289,8 @@ export class StratumServer extends EventEmitter {
             nTimeHex,
             nBitsHex: job.nBitsHex,
             nonceHex,
+            swapVersionByteOrder: combo.swapVersion,
+            swapMerkleByteOrder: combo.swapMerkle,
             swapNonceByteOrder: combo.swapNonce,
             swapNtimeByteOrder: combo.swapNtime,
           });
