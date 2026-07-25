@@ -235,7 +235,7 @@ export class StratumServer extends EventEmitter {
     // 4. Build 80-byte Block Header
     const header = buildBlockHeader({
       version,
-      prevHashHex: job.prevHashStratum,
+      prevHashRawHex: job.prevHashRaw,
       merkleRootBE,
       nTimeHex,
       nBitsHex: job.nBitsHex,

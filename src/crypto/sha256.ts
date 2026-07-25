@@ -106,7 +106,7 @@ export function calculateAsicBoostVersion(
  */
 export function buildBlockHeader(params: {
   version: number;
-  prevHashHex: string;
+  prevHashRawHex: string;
   merkleRootBE: Buffer;
   nTimeHex: string;
   nBitsHex: string;
@@ -117,31 +117,43 @@ export function buildBlockHeader(params: {
   // 1. Version (4 bytes, Little Endian)
   header.writeUInt32LE(params.version, 0);
 
-  // 2. PrevHash (32 bytes, Little Endian - input prevHashHex from stratum is in reversed 4-byte chunks or LE hex)
-  // Standard Stratum prevhash is encoded as 8 x 4-byte LE words or raw 32-byte LE hex
-  const prevHashBuf = Buffer.from(params.prevHashHex, 'hex');
+  // 2. PrevHash (32 bytes, Little Endian)
+  const prevHashBuf = reverseBuffer(Buffer.from(params.prevHashRawHex, 'hex'));
   if (prevHashBuf.length === 32) {
     prevHashBuf.copy(header, 4);
   } else {
-    // Fallback swap if needed
     Buffer.alloc(32).copy(header, 4);
   }
 
   // 3. Merkle Root (32 bytes, Little Endian)
-  // Note: calculateMerkleRoot gives LE txid hashes, copy LE
   params.merkleRootBE.copy(header, 36);
 
   // 4. nTime (4 bytes, Little Endian)
-  const nTime = parseInt(params.nTimeHex, 16);
-  header.writeUInt32LE(nTime, 68);
+  const nTimeBuf = Buffer.from(params.nTimeHex, 'hex');
+  if (nTimeBuf.length === 4) {
+    const nTime = nTimeBuf.readUInt32BE(0);
+    header.writeUInt32LE(nTime, 68);
+  } else {
+    header.writeUInt32LE(parseInt(params.nTimeHex, 16), 68);
+  }
 
   // 5. nBits (4 bytes, Little Endian)
-  const nBits = parseInt(params.nBitsHex, 16);
-  header.writeUInt32LE(nBits, 72);
+  const nBitsBuf = Buffer.from(params.nBitsHex, 'hex');
+  if (nBitsBuf.length === 4) {
+    const nBits = nBitsBuf.readUInt32BE(0);
+    header.writeUInt32LE(nBits, 72);
+  } else {
+    header.writeUInt32LE(parseInt(params.nBitsHex, 16), 72);
+  }
 
   // 6. Nonce (4 bytes, Little Endian)
-  const nonce = parseInt(params.nonceHex, 16);
-  header.writeUInt32LE(nonce, 76);
+  const nonceBuf = Buffer.from(params.nonceHex, 'hex');
+  if (nonceBuf.length === 4) {
+    const nonce = nonceBuf.readUInt32BE(0);
+    header.writeUInt32LE(nonce, 76);
+  } else {
+    header.writeUInt32LE(parseInt(params.nonceHex, 16), 76);
+  }
 
   return header;
 }
