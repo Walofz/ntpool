@@ -131,4 +131,50 @@ export class BitcoinRpcClient {
   public async getBlockchainInfo(): Promise<any> {
     return this.call<any>('getblockchaininfo', []);
   }
+
+  public async getNetworkInfo(): Promise<any> {
+    return this.call<any>('getnetworkinfo', []);
+  }
+
+  /**
+   * Auto-detect coin symbol from RPC Node (getnetworkinfo / getblockchaininfo)
+   */
+  public async detectCoinSymbol(): Promise<string> {
+    // 1. If explicitly set in process.env.COIN_SYMBOL and not default 'BTC', prefer it
+    if (process.env.COIN_SYMBOL && process.env.COIN_SYMBOL.trim() !== '' && process.env.COIN_SYMBOL.trim().toUpperCase() !== 'BTC') {
+      return process.env.COIN_SYMBOL.trim().toUpperCase();
+    }
+
+    // 2. Query node RPC getnetworkinfo
+    try {
+      const netInfo: any = await this.getNetworkInfo();
+      if (netInfo && netInfo.subversion) {
+        const sub = String(netInfo.subversion).toLowerCase();
+        if (sub.includes('digibyte')) return 'DGB';
+        if (sub.includes('auroracoin')) return 'AUR';
+        if (sub.includes('bitcoin cash') || sub.includes('bch')) return 'BCH';
+        if (sub.includes('bitcoin sv') || sub.includes('bsv')) return 'BSV';
+        if (sub.includes('litecoin')) return 'LTC';
+        if (sub.includes('peercoin')) return 'PPC';
+        if (sub.includes('namecoin')) return 'NMC';
+        if (sub.includes('syscoin')) return 'SYS';
+        if (sub.includes('dogecoin')) return 'DOGE';
+        if (sub.includes('viacoin')) return 'VIA';
+        if (sub.includes('dash')) return 'DASH';
+        if (sub.includes('satoshi') || sub.includes('bitcoin')) return 'BTC';
+      }
+    } catch (err) {}
+
+    // 3. Query node RPC getblockchaininfo
+    try {
+      const chainInfo: any = await this.getBlockchainInfo();
+      if (chainInfo && chainInfo.chain) {
+        const chain = String(chainInfo.chain).toLowerCase();
+        if (chain.includes('dgb') || chain.includes('digibyte')) return 'DGB';
+        if (chain.includes('bch')) return 'BCH';
+      }
+    } catch (err) {}
+
+    return process.env.COIN_SYMBOL ? process.env.COIN_SYMBOL.toUpperCase() : 'BTC';
+  }
 }

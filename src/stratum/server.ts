@@ -1,4 +1,6 @@
 import net from 'net';
+import fs from 'fs';
+import path from 'path';
 import { EventEmitter } from 'events';
 import { config } from '../config';
 import { StratumSession } from './session';
@@ -17,27 +19,67 @@ import {
 } from '../crypto/sha256';
 import { BitcoinRpcClient } from '../bitcoin/rpc';
 
+export interface FoundBlock {
+  height: number;
+  hash: string;
+  miner: string;
+  worker: string;
+  timestamp: Date | string;
+  reward: number;
+  symbol: string;
+}
+
 export class StratumServer extends EventEmitter {
   private server: net.Server | null = null;
   private sessions: Map<string, StratumSession> = new Map();
   private jobManager: JobManager;
   private bitcoinRpc: BitcoinRpcClient;
   private sessionCounter = 0;
+  private blocksFilePath = path.join(process.cwd(), 'data', 'found_blocks.json');
 
   // Blocks found log
-  public foundBlocks: Array<{
-    height: number;
-    hash: string;
-    miner: string;
-    worker: string;
-    timestamp: Date;
-    reward: number;
-  }> = [];
+  public foundBlocks: FoundBlock[] = [];
 
   constructor(jobManager: JobManager, bitcoinRpc: BitcoinRpcClient) {
     super();
     this.jobManager = jobManager;
     this.bitcoinRpc = bitcoinRpc;
+    this.loadFoundBlocks();
+  }
+
+  private loadFoundBlocks(): void {
+    try {
+      const dir = path.dirname(this.blocksFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      if (fs.existsSync(this.blocksFilePath)) {
+        const raw = fs.readFileSync(this.blocksFilePath, 'utf8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          this.foundBlocks = data.map((b: any) => ({
+            ...b,
+            symbol: b.symbol || config.coinSymbol,
+          }));
+          console.log(`[Stratum] Loaded ${this.foundBlocks.length} persisted found blocks from disk.`);
+        }
+      }
+    } catch (err: any) {
+      console.error('[Stratum Error] Failed to load found_blocks.json:', err.message);
+    }
+  }
+
+  private saveFoundBlocks(): void {
+    try {
+      const dir = path.dirname(this.blocksFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(this.blocksFilePath, JSON.stringify(this.foundBlocks, null, 2), 'utf8');
+    } catch (err: any) {
+      console.error('[Stratum Error] Failed to save found_blocks.json:', err.message);
+    }
   }
 
   public start(): void {
@@ -351,15 +393,19 @@ export class StratumServer extends EventEmitter {
         const result = await this.bitcoinRpc.submitBlock(blockHex);
         console.log(`[RPC submitblock] Result: ${result === null ? 'SUCCESS (ACCEPTED)' : result}`);
 
-        this.foundBlocks.unshift({
+        const blockRecord: FoundBlock = {
           height: job.blockHeight,
-          hash: headerHashBE.toString('hex'),
+          hash: finalHashBE.toString('hex'),
           miner: session.minerAddress,
           worker: session.workerName,
           timestamp: new Date(),
           reward: job.coinbaseValue / 1e8,
-        });
-        this.emit('block_found', this.foundBlocks[0]);
+          symbol: config.coinSymbol,
+        };
+
+        this.foundBlocks.unshift(blockRecord);
+        this.saveFoundBlocks();
+        this.emit('block_found', blockRecord);
       } catch (err: any) {
         console.error(`[RPC submitblock Error]:`, err.message);
       }

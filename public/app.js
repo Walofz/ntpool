@@ -69,6 +69,13 @@ function updateDashboard(data) {
 
   // Render Blocks Mined
   const blocksList = document.getElementById('blocks-list');
+  const coinSymbol = data.coinSymbol || 'BTC';
+  const addressInput = document.getElementById('address-input');
+  if (addressInput && !addressInput.dataset.updated) {
+    addressInput.placeholder = `Enter ${coinSymbol} Payout Address`;
+    addressInput.dataset.updated = "true";
+  }
+
   if (!data.blocksFound || data.blocksFound.length === 0) {
     blocksList.innerHTML = `<div class="empty-state">No solo blocks found yet. Keep hashing!</div>`;
   } else {
@@ -76,7 +83,7 @@ function updateDashboard(data) {
       <div class="block-card">
         <div class="block-title">
           <span>Block #${b.height}</span>
-          <span>+${b.reward} BTC</span>
+          <span>+${b.reward} ${b.symbol || coinSymbol}</span>
         </div>
         <div class="block-hash">Hash: ${b.hash}</div>
         <div style="font-size:0.75rem; color:#8a99ad; margin-top:0.3rem;">Mined by: ${truncateAddress(b.miner)}.${b.worker}</div>

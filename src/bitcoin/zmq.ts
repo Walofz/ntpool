@@ -20,6 +20,12 @@ export class BlockNotifier {
 
   public async start(): Promise<void> {
     console.log('[Notifier] Starting Bitcoin Node Poller & Block Observer...');
+    try {
+      const symbol = await this.rpc.detectCoinSymbol();
+      config.coinSymbol = symbol;
+      console.log(`[Notifier] Connected to Node RPC (${config.rpcHost}:${config.rpcPort}). Auto-detected Coin Symbol: ${config.coinSymbol}`);
+    } catch (e) {}
+
     await this.checkAndUpdateJob();
 
     // Poll getblocktemplate every 3 seconds for fast job updates

@@ -117,6 +117,7 @@ export class WebDashboardServer {
       poolName: config.poolName,
       stratumPort: config.stratumPort,
       network: config.network,
+      coinSymbol: config.coinSymbol,
       blockHeight: currentJob ? currentJob.blockHeight : 0,
       networkDifficulty: currentJob ? nbitsToDifficulty(currentJob.nBitsHex) : 0,
       activeMiners: uniqueMiners.size,

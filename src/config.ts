@@ -18,6 +18,7 @@ export interface PoolConfig {
   zmqHost: string;
   zmqPort: number;
   poolName: string;
+  coinSymbol: string;
   coinbaseText: string;
   poolFeePercent: number;
   poolFeeAddress: string;
@@ -40,6 +41,7 @@ export const config: PoolConfig = {
   zmqHost: process.env.ZMQ_HOST || '127.0.0.1',
   zmqPort: parseInt(process.env.ZMQ_PORT || '28332', 10),
   poolName: process.env.POOL_NAME || 'ntpool SHA-256 Solo Pool',
+  coinSymbol: (process.env.COIN_SYMBOL || 'BTC').toUpperCase(),
   coinbaseText: process.env.COINBASE_TEXT || '/ntpool/',
   poolFeePercent: parseFloat(process.env.POOL_FEE_PERCENT || '0.0'),
   poolFeeAddress: process.env.POOL_FEE_ADDRESS || '',
