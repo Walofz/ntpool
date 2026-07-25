@@ -34,7 +34,6 @@ func EncodeBip34Height(height int64) []byte {
 const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 func base58Decode(input string) []byte {
-	zero := big.NewInt(0)
 	radix := big.NewInt(58)
 	result := big.NewInt(0)
 

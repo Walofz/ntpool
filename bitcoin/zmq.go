@@ -1,7 +1,6 @@
 package bitcoin
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
