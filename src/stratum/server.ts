@@ -242,7 +242,7 @@ export class StratumServer extends EventEmitter {
 
     // 4. Targets & Comprehensive Multi-pass Header Verification
     const minerTarget = difficultyToTarget(session.currentDiff);
-    const networkTarget = nbitsToTarget(job.nBitsHex);
+    const networkTarget = job.targetHex ? bufferToBigIntBE(Buffer.from(job.targetHex, 'hex')) : nbitsToTarget(job.nBitsHex);
 
     const prevHashCandidates = [job.prevHashRaw, job.prevHashStratum];
     const combinations = [

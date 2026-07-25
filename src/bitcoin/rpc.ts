@@ -103,17 +103,24 @@ export class BitcoinRpcClient {
   }
 
   public async getBlockTemplate(): Promise<BlockTemplate> {
-    const params: any = {
-      rules: ['segwit'],
-      algo: process.env.RPC_ALGO || 'sha256d',
-    };
+    const algo = process.env.RPC_ALGO || 'sha256d';
 
+    // 1. Try rules: ['segwit'] + algo: sha256d
     try {
-      return await this.call<BlockTemplate>('getblocktemplate', [params]);
-    } catch (err: any) {
-      // Fallback if node does not accept 'algo' parameter (e.g. Bitcoin Core)
-      delete params.algo;
-      return await this.call<BlockTemplate>('getblocktemplate', [params]);
+      return await this.call<BlockTemplate>('getblocktemplate', [{ rules: ['segwit'], algo }]);
+    } catch (err1: any) {
+      // 2. Try ONLY algo: sha256d (without segwit rule)
+      try {
+        return await this.call<BlockTemplate>('getblocktemplate', [{ algo }]);
+      } catch (err2: any) {
+        // 3. Try algo: 'sha256'
+        try {
+          return await this.call<BlockTemplate>('getblocktemplate', [{ algo: 'sha256' }]);
+        } catch (err3: any) {
+          // 4. Fallback for standard Bitcoin Core (no algo parameter)
+          return await this.call<BlockTemplate>('getblocktemplate', [{ rules: ['segwit'] }]);
+        }
+      }
     }
   }
 

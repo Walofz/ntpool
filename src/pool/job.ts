@@ -16,6 +16,7 @@ export interface MiningJob {
   merkleBranchHex: string[];
   txsData: string[];
   defaultWitnessCommitment?: string;
+  targetHex?: string;
   createdTime: number;
 }
 
@@ -117,6 +118,7 @@ export class JobManager {
       merkleBranchHex,
       txsData: template.transactions.map((t) => t.data),
       defaultWitnessCommitment: template.default_witness_commitment,
+      targetHex: template.target,
       createdTime: Date.now(),
     };
 
