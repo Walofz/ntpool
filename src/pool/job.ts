@@ -45,8 +45,9 @@ export class JobManager {
     if (txs.length === 0) return [];
 
     let currentLevel: Buffer[] = txs.map((tx) => {
-      if (tx.txid) {
-        return reverseBuffer(Buffer.from(tx.txid, 'hex'));
+      const hashStr = tx.hash || tx.txid;
+      if (hashStr) {
+        return reverseBuffer(Buffer.from(hashStr, 'hex'));
       }
       const rawTx = Buffer.from(tx.data, 'hex');
       return sha256d(rawTx);
