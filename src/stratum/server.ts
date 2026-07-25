@@ -300,53 +300,60 @@ export class StratumServer extends EventEmitter {
     let accepted = false;
     let matchedCoinbaseTxHex = coinbaseTxHex;
 
-    // Generate extranonce2 candidates (original + byte-reversed)
+    // Generate extranonce2 candidates (original + byte-reversed for Avalon/Canaan)
     const ext2Candidates = this.getExt2Candidates(extranonce2Hex, session.extranonce2Size);
 
-    // Evaluate all version × ext2 combinations
+    // Generate nonce candidates: standard (BE hex→uint32) + reversed (LE hex for Avalon Nano 3)
+    const nonceRevBuf = Buffer.from(nonceHex.padStart(8, '0'), 'hex');
+    const nonceReversedHex = reverseBuffer(nonceRevBuf).toString('hex');
+    const nonceCandidates = [nonceHex];
+    if (nonceReversedHex !== nonceHex) nonceCandidates.push(nonceReversedHex);
+
+    // Evaluate all version × ext2 × nonce combinations
     primaryLoop: for (const ext2 of ext2Candidates) {
       const cbTxHex = `${job.coinb1}${session.extranonce1}${ext2}${job.coinb2}`;
       const cbTxIdLE = sha256d(Buffer.from(cbTxHex, 'hex'));
       const mRoot = calculateMerkleRoot(cbTxIdLE, job.merkleBranchHex);
 
       for (const ver of versionCandidates) {
-        const header = buildBlockHeader({
-          version: ver,
-          prevHashRawHex: job.prevHashRaw,
-          merkleRootBE: mRoot,
-          nTimeHex,
-          nBitsHex: job.nBitsHex,
-          nonceHex,
-        });
-        const headerHashLE = sha256d(header);
-        const headerHashBE = reverseBuffer(headerHashLE);
-        const hashBigInt = bufferToBigIntBE(headerHashBE);
+        for (const nonce of nonceCandidates) {
+          const header = buildBlockHeader({
+            version: ver,
+            prevHashRawHex: job.prevHashRaw,
+            merkleRootBE: mRoot,
+            nTimeHex,
+            nBitsHex: job.nBitsHex,
+            nonceHex: nonce,
+          });
+          const headerHashLE = sha256d(header);
+          const headerHashBE = reverseBuffer(headerHashLE);
+          const hashBigInt = bufferToBigIntBE(headerHashBE);
 
-        if (hashBigInt <= minerTarget) {
-          finalHeader = header;
-          finalHashLE = headerHashLE;
-          finalHashBE = headerHashBE;
-          finalHashBigInt = hashBigInt;
-          finalShareDiff = hashToDifficulty(headerHashLE);
-          accepted = true;
-          matchedCoinbaseTxHex = cbTxHex;
-          break primaryLoop;
-        }
+          if (hashBigInt <= minerTarget) {
+            finalHeader = header;
+            finalHashLE = headerHashLE;
+            finalHashBE = headerHashBE;
+            finalHashBigInt = hashBigInt;
+            finalShareDiff = hashToDifficulty(headerHashLE);
+            accepted = true;
+            matchedCoinbaseTxHex = cbTxHex;
+            break primaryLoop;
+          }
 
-        const candDiff = hashToDifficulty(headerHashLE);
-        if (candDiff > finalShareDiff) {
-          finalHeader = header;
-          finalHashLE = headerHashLE;
-          finalHashBE = headerHashBE;
-          finalHashBigInt = hashBigInt;
-          finalShareDiff = candDiff;
+          const candDiff = hashToDifficulty(headerHashLE);
+          if (candDiff > finalShareDiff) {
+            finalHeader = header;
+            finalHashLE = headerHashLE;
+            finalHashBE = headerHashBE;
+            finalHashBigInt = hashBigInt;
+            finalShareDiff = candDiff;
+          }
         }
       }
     }
 
     if (!accepted) {
       session.rejectedShares++;
-      console.log(`[Share REJECTED] Worker: ${session.workerName}, Diff: ${finalShareDiff.toFixed(6)}, Required: ${session.currentDiff}, verBits: ${versionBitsHex}, ext2: ${extranonce2Hex}, nTime: ${nTimeHex}, nonce: ${nonceHex}, jobVer: ${job.versionHex}`);
       return this.sendResponse(session, id, false, {
         code: 23,
         message: `Low difficulty share (Achieved diff ${finalShareDiff.toFixed(2)} < required ${session.currentDiff})`,
