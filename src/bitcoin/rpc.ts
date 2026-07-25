@@ -140,12 +140,12 @@ export class BitcoinRpcClient {
    * Auto-detect coin symbol from RPC Node (getnetworkinfo / getblockchaininfo)
    */
   public async detectCoinSymbol(): Promise<string> {
-    // 1. If explicitly set in process.env.COIN_SYMBOL and not default 'BTC', prefer it
-    if (process.env.COIN_SYMBOL && process.env.COIN_SYMBOL.trim() !== '' && process.env.COIN_SYMBOL.trim().toUpperCase() !== 'BTC') {
+    // 1. If explicitly set in process.env.COIN_SYMBOL, prefer it
+    if (process.env.COIN_SYMBOL && process.env.COIN_SYMBOL.trim() !== '') {
       return process.env.COIN_SYMBOL.trim().toUpperCase();
     }
 
-    // 2. Query node RPC getnetworkinfo
+    // 2. Query node RPC getnetworkinfo for specific altcoin subversions
     try {
       const netInfo: any = await this.getNetworkInfo();
       if (netInfo && netInfo.subversion) {
@@ -161,7 +161,6 @@ export class BitcoinRpcClient {
         if (sub.includes('dogecoin')) return 'DOGE';
         if (sub.includes('viacoin')) return 'VIA';
         if (sub.includes('dash')) return 'DASH';
-        if (sub.includes('satoshi') || sub.includes('bitcoin')) return 'BTC';
       }
     } catch (err) {}
 
@@ -175,6 +174,6 @@ export class BitcoinRpcClient {
       }
     } catch (err) {}
 
-    return process.env.COIN_SYMBOL ? process.env.COIN_SYMBOL.toUpperCase() : 'BTC';
+    return 'BTC';
   }
 }
