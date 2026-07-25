@@ -135,11 +135,16 @@ func (s *StratumServer) handleConnection(conn net.Conn) {
 	}()
 
 	scanner := bufio.NewScanner(conn)
+	scanner.Buffer(make([]byte, 4096), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if len(line) > 0 {
 			s.handleMessage(session, line)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("[Stratum] Session %s scanner error: %v", session.ID, err)
 	}
 }
 
@@ -149,9 +154,9 @@ func (s *StratumServer) sendResponse(session *StratumSession, id interface{}, re
 		"result": result,
 		"error":  errObj,
 	}
-	data, _ := json.Marshal(resp)
-	data = append(data, '\n')
-	session.Conn.Write(data)
+	if err := session.WriteJSON(resp); err != nil {
+		log.Printf("[Stratum] Failed to send response to session %s: %v", session.ID, err)
+	}
 }
 
 func (s *StratumServer) sendNotification(session *StratumSession, method string, params []interface{}) {
@@ -160,9 +165,9 @@ func (s *StratumServer) sendNotification(session *StratumSession, method string,
 		"method": method,
 		"params": params,
 	}
-	data, _ := json.Marshal(notif)
-	data = append(data, '\n')
-	session.Conn.Write(data)
+	if err := session.WriteJSON(notif); err != nil {
+		log.Printf("[Stratum] Failed to send notification %s to session %s: %v", method, session.ID, err)
+	}
 }
 
 func (s *StratumServer) notifyStats() {
@@ -355,6 +360,7 @@ primaryLoop:
 
 	if diffChanged {
 		s.sendNotification(session, "mining.set_difficulty", []interface{}{newDiff})
+		s.sendJobToSession(session, job, false)
 	}
 
 	if finalHashBigInt != nil && finalHashBigInt.Cmp(networkTarget) <= 0 {

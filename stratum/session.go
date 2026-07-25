@@ -1,6 +1,7 @@
 package stratum
 
 import (
+	"encoding/json"
 	"net"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ type ShareHistory struct {
 
 type StratumSession struct {
 	mu                    sync.Mutex
+	writeMu               sync.Mutex
 	ID                    string
 	Conn                  net.Conn
 	IP                    string
@@ -166,4 +168,23 @@ func mathMin(a, b float64) float64 {
 
 func mathRound(a float64) float64 {
 	return float64(int64(a + 0.5))
+}
+
+func (s *StratumSession) WriteJSON(payload interface{}) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	data = append(data, '\n')
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	if s.Conn == nil {
+		return net.ErrClosed
+	}
+
+	_, err = s.Conn.Write(data)
+	return err
 }
