@@ -166,11 +166,10 @@ func (z *ZmqBlockSubscriber) readLoop(conn net.Conn) {
 			return
 		}
 
-		// Check topic frame or block hash content
-		topicStr := string(frame)
-		if strings.Contains(topicStr, "hashblock") || len(frame) == 32 {
+		// Check block hash content (32 bytes)
+		if len(frame) == 32 {
 			hashHex := hex.EncodeToString(frame)
-			log.Printf("⚡ [ZMQ Instant Notification] New Block Detected on Network! (Hash/Payload: %s)", hashHex)
+			log.Printf("⚡ [ZMQ Instant Notification] New Block Detected on Network! (Hash: %s)", hashHex)
 			if z.onBlockFound != nil {
 				z.onBlockFound(hashHex)
 			}

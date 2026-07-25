@@ -387,7 +387,26 @@ primaryLoop:
 func (s *StratumServer) buildFullBlockHex(header []byte, coinbaseTxHex string, txsData []string) string {
 	var buf bytes.Buffer
 	buf.Write(header)
-	buf.WriteByte(byte(1 + len(txsData)))
+
+	txCount := uint64(1 + len(txsData))
+	if txCount < 0xfd {
+		buf.WriteByte(byte(txCount))
+	} else if txCount <= 0xffff {
+		buf.WriteByte(0xfd)
+		b := make([]byte, 2)
+		binary.LittleEndian.PutUint16(b, uint16(txCount))
+		buf.Write(b)
+	} else if txCount <= 0xffffffff {
+		buf.WriteByte(0xfe)
+		b := make([]byte, 4)
+		binary.LittleEndian.PutUint32(b, uint32(txCount))
+		buf.Write(b)
+	} else {
+		buf.WriteByte(0xff)
+		b := make([]byte, 8)
+		binary.LittleEndian.PutUint64(b, uint64(txCount))
+		buf.Write(b)
+	}
 
 	cbBytes, _ := hex.DecodeString(coinbaseTxHex)
 	buf.Write(cbBytes)
