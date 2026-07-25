@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"math/big"
 	"strings"
