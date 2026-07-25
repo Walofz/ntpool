@@ -205,21 +205,8 @@ export class StratumServer extends EventEmitter {
       return this.sendResponse(session, id, false, { code: 21, message: 'Stale / Job not found' });
     }
 
-    const extranonce1Size = session.extranonce1 ? Math.floor(session.extranonce1.length / 2) : 4;
-    const extranonce2Size = extranonce2Hex ? Math.floor(extranonce2Hex.length / 2) : session.extranonce2Size;
-
-    // 1. Build Coinbase Tx for this miner
-    const coinbase = buildCoinbaseTransaction({
-      blockHeight: job.blockHeight,
-      coinbaseValue: job.coinbaseValue,
-      minerAddress: session.minerAddress,
-      extranonce1Size,
-      extranonce2Size,
-      defaultWitnessCommitment: job.defaultWitnessCommitment,
-    });
-
-    // Reconstruct full coinbase tx
-    const coinbaseTxHex = `${coinbase.coinb1}${session.extranonce1}${extranonce2Hex}${coinbase.coinb2}`;
+    // Reconstruct full coinbase tx matching Go code
+    const coinbaseTxHex = `${job.coinb1}${session.extranonce1}${extranonce2Hex}${job.coinb2}`;
     const coinbaseTxBuf = Buffer.from(coinbaseTxHex, 'hex');
 
     // Coinbase TxID (SHA-256d)
@@ -401,20 +388,11 @@ export class StratumServer extends EventEmitter {
   }
 
   private sendJobToSession(session: StratumSession, job: MiningJob, cleanJobs: boolean): void {
-    const coinbase = buildCoinbaseTransaction({
-      blockHeight: job.blockHeight,
-      coinbaseValue: job.coinbaseValue,
-      minerAddress: session.minerAddress,
-      extranonce1Size: 4,
-      extranonce2Size: session.extranonce2Size,
-      defaultWitnessCommitment: job.defaultWitnessCommitment,
-    });
-
     const params = [
       job.jobId,
       job.prevHashStratum,
-      coinbase.coinb1,
-      coinbase.coinb2,
+      job.coinb1,
+      job.coinb2,
       job.merkleBranchHex,
       job.versionHex,
       job.nBitsHex,

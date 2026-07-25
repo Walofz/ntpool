@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { BlockTemplate } from '../bitcoin/rpc';
 import { buildCoinbaseTransaction } from './coinbase';
 import { sha256d, reverseBuffer } from '../crypto/sha256';
+import { config } from '../config';
 
 export interface MiningJob {
   jobId: string;
@@ -17,6 +18,8 @@ export interface MiningJob {
   txsData: string[];
   defaultWitnessCommitment?: string;
   targetHex?: string;
+  coinb1: string;
+  coinb2: string;
   createdTime: number;
 }
 
@@ -110,6 +113,15 @@ export class JobManager {
     const nBitsHex = template.bits;
     const nTimeHex = template.curtime.toString(16).padStart(8, '0');
 
+    const coinbase = buildCoinbaseTransaction({
+      blockHeight: template.height,
+      coinbaseValue: template.coinbasevalue,
+      minerAddress: config.poolFeeAddress || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+      extranonce1Size: 4,
+      extranonce2Size: 4,
+      defaultWitnessCommitment: template.default_witness_commitment,
+    });
+
     const job: MiningJob = {
       jobId,
       blockHeight: template.height,
@@ -124,6 +136,8 @@ export class JobManager {
       txsData: template.transactions.map((t) => t.data),
       defaultWitnessCommitment: template.default_witness_commitment,
       targetHex: template.target,
+      coinb1: coinbase.coinb1,
+      coinb2: coinbase.coinb2,
       createdTime: Date.now(),
     };
 
