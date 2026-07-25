@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,6 +67,13 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 			"bestShareDiff": s.BestShareDiff,
 		})
 	}
+
+	// Sort ASIC Workers alphabetically by WorkerName (case-insensitive)
+	sort.Slice(workersList, func(i, j int) bool {
+		w1, _ := workersList[i]["workerName"].(string)
+		w2, _ := workersList[j]["workerName"].(string)
+		return strings.ToLower(w1) < strings.ToLower(w2)
+	})
 
 	blockHeight := int64(0)
 	netDiff := 0.0
