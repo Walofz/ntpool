@@ -38,6 +38,7 @@ func (z *ZmqBlockSubscriber) Start() {
 
 func (z *ZmqBlockSubscriber) connectLoop() {
 	addr := fmt.Sprintf("%s:%d", z.cfg.ZmqHost, z.cfg.ZmqPort)
+	lastConnectAt := time.Time{}
 
 	for {
 		select {
@@ -53,6 +54,7 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 			time.Sleep(5 * time.Second)
 			continue
 		}
+		lastConnectAt = time.Now()
 
 		z.conn = conn
 		log.Printf("[ZMQ Go] Connected to ZMQ socket at %s! Listening for instant block notifications...", addr)
@@ -68,6 +70,13 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 			log.Printf("[ZMQ Go] Read loop ended: %v. Reconnecting...", err)
 		}
 		conn.Close()
+
+		// If the socket is closed almost immediately by peer (e.g., bad handshake/sub frame),
+		// wait a bit longer to avoid log spam and connection storm.
+		if !lastConnectAt.IsZero() && time.Since(lastConnectAt) < 2*time.Second {
+			time.Sleep(8 * time.Second)
+			continue
+		}
 		time.Sleep(3 * time.Second)
 	}
 }
@@ -92,7 +101,7 @@ func (z *ZmqBlockSubscriber) handshakeAndSubscribe(conn net.Conn) error {
 	}
 
 	// 2. Send READY Command (Socket-Type SUB)
-	readyMetadata := []byte("\x04READY\x0bSocket-Type\x00\x00\x00\x03SUB")
+	readyMetadata := []byte("\x05READY\x0bSocket-Type\x00\x00\x00\x03SUB")
 	readyFrame := z.buildZmtpFrame(readyMetadata, false)
 	if _, err := conn.Write(readyFrame); err != nil {
 		return err
