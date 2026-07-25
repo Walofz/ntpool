@@ -277,6 +277,8 @@ export class StratumServer extends EventEmitter {
       console.log(`[BLOCK FOUND] 🎉🎉🎉 Miner ${session.minerAddress} FOUND BLOCK #${job.blockHeight}!`);
       console.log(`Block Hash: ${headerHashBE.toString('hex')}`);
 
+      this.resetAllBestShares();
+
       const blockHex = this.buildFullBlockHex(header, coinbaseTxHex, job.txsData);
       
       try {
@@ -316,7 +318,22 @@ export class StratumServer extends EventEmitter {
     return hex;
   }
 
+  private lastBroadcastHeight = 0;
+
+  public resetAllBestShares(): void {
+    for (const session of this.sessions.values()) {
+      session.resetBestShare();
+    }
+    console.log(`[Pool] 🔄 Block height changed / Block found - Reset Best Share to 0 for all workers.`);
+    this.emit('stats_updated');
+  }
+
   public broadcastJob(job: MiningJob, cleanJobs = true): void {
+    if (job.blockHeight !== this.lastBroadcastHeight && this.lastBroadcastHeight > 0) {
+      this.resetAllBestShares();
+    }
+    this.lastBroadcastHeight = job.blockHeight;
+
     for (const session of this.sessions.values()) {
       if (session.isAuthorized) {
         this.sendJobToSession(session, job, cleanJobs);

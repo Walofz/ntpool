@@ -49,6 +49,13 @@ export class StratumSession {
   }
 
   /**
+   * Reset Best Share difficulty to 0 (e.g. when a block is found)
+   */
+  public resetBestShare(): void {
+    this.bestShareDiff = 0;
+  }
+
+  /**
    * Record share for Vardiff calculation
    */
   /**
@@ -81,28 +88,30 @@ export class StratumSession {
 
   /**
    * Compute new difficulty based on share submission rate (target ~12 shares / min)
+   * Uses smooth dampening to avoid rejecting valid shares during difficulty transitions
    */
   private calculateVardiff(): number | null {
-    if (this.shareHistory.length < 5) return null;
+    if (this.shareHistory.length < 10) return null;
 
     const oldest = this.shareHistory[0];
     const newest = this.shareHistory[this.shareHistory.length - 1];
     const timeDeltaSec = (newest.timestamp - oldest.timestamp) / 1000;
 
-    if (timeDeltaSec <= 0) return null;
+    // Must have at least 15 seconds of history to judge rate accurately
+    if (timeDeltaSec < 15) return null;
 
     const sharesPerMin = (this.shareHistory.length / timeDeltaSec) * 60;
-    const targetRate = config.vardiffTargetShares; // 12 shares/min
+    const targetRate = config.vardiffTargetShares || 12; // 12 shares/min
 
-    const ratio = sharesPerMin / targetRate;
+    let ratio = sharesPerMin / targetRate;
 
-    // Adjust difficulty if outside 0.6 to 1.6 range
-    if (ratio > 1.6 || ratio < 0.6) {
-      let newDiff = this.currentDiff * ratio;
+    // Smooth dampening: max +/- 25% adjustment per step
+    ratio = Math.max(0.75, Math.min(1.25, ratio));
+
+    if (ratio > 1.15 || ratio < 0.85) {
+      let newDiff = Math.round(this.currentDiff * ratio);
       newDiff = Math.max(config.minDiff, Math.min(config.maxDiff, newDiff));
-      // Round to nice numbers
-      newDiff = Math.round(newDiff);
-      if (newDiff !== this.currentDiff) {
+      if (Math.abs(newDiff - this.currentDiff) >= 16) {
         this.currentDiff = newDiff;
         return newDiff;
       }
