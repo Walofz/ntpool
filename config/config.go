@@ -27,6 +27,10 @@ type Config struct {
 	PoolFeePercent      float64
 	PoolFeeAddress      string
 	WalletAddress       string
+	NtfyServer          string
+	NtfyTopic           string
+	NtfyUser            string
+	NtfyPassword        string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -86,5 +90,9 @@ func LoadConfig() *Config {
 		PoolFeePercent:      getEnvFloat("POOL_FEE_PERCENT", 0.0),
 		PoolFeeAddress:      getEnv("POOL_FEE_ADDRESS", ""),
 		WalletAddress:       getEnv("WALLET_ADDRESS", "AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr"),
+		NtfyServer:          getEnv("NTFY_SERVER", "http://192.168.1.250:18080"),
+		NtfyTopic:           getEnv("NTFY_TOPIC", "ntpool-blocks"),
+		NtfyUser:            getEnv("NTFY_USER", "user"),
+		NtfyPassword:        getEnv("NTFY_PASSWORD", "pass"),
 	}
 }

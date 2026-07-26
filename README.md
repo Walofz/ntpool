@@ -1,147 +1,167 @@
-# ⚡ ntpool (Node Type Pool)
+# ntpool
 
-High-performance SHA-256 Solo Mining Pool (CKPool style architecture) with Overt AsicBoost support and real-time Web Dashboard. Built with TypeScript & Node.js.
+High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt AsicBoost support, a LAN-only realtime web dashboard, and optional `ntfy` block-found notifications.
 
----
+## Overview
 
-## 🌟 Overview & Key Features
+`ntpool` เป็น solo mining pool แบบพึ่งพา node ของตัวเอง โดยเน้น path การแจกงานและตรวจ share ที่ตรงไปตรงมา ใช้ Bitcoin RPC สำหรับ block template, ใช้ ZMQ สำหรับรับ block notification แบบทันที, และมี web dashboard สำหรับดู worker, hashrate, difficulty, best share, และ blocks found
 
-**ntpool** (Node Type Pool) คือระบบ Solo Mining Pool ประสิทธิภาพสูงที่ถูกออกแบบตามสถาปัตยกรรม CKPool สำหรับการขุด Bitcoin (SHA-256) แบบพึ่งพา Node ตัวเอง (Node Type Pool) โดยเน้นความเร็ว ความแม่นยำ และรองรับเครื่องขุด ASIC สมัยใหม่เต็มรูปแบบ
+ฟีเจอร์หลักของโปรเจกต์ปัจจุบัน:
 
-- **⚡ CKPool Style Architecture**: คำนวณ Work และแจกจ่าย Job ให้อย่างรวดเร็วผ่าน Stratum Protocol V1
-- **🚀 Overt AsicBoost (Version Rolling)**: รองรับการขุดแบบ AsicBoost ช่วยเพิ่มประสิทธิภาพและประหยัดพลังงานสำหรับเครื่อง ASIC (เช่น Antminer S9/S19/S21, Whatsminer, Avalon)
-- **💎 Direct Coinbase Payout**: เมื่อขุดเจอ บล็อกและรางวัลรวมถึงค่าธรรมเนียมธุรกรรม (Block Reward + Tx Fees) จะถูกจ่ายตรงไปยัง Bitcoin Address ของผู้ขุดใน Coinbase Transaction ทันที ไม่ต้องผ่านกระเป๋าของ Pool
-- **📊 Real-time Web Dashboard**: ดูสถานะเครื่องขุด (Workers), Hashrate 1m/5m, Diff, Best Share และค้นหาข้อมูลตาม Bitcoin Address ผ่าน Web Browser แบบเรียลไทม์ (WebSocket)
-- **🐳 Docker Ready**: มี `Dockerfile` และ `docker-compose.yml` สำหรับการติดตั้งและรันแบบ Container บน Server ได้อย่างสะดวก
+- Stratum V1 server สำหรับเครื่องขุด SHA-256
+- รองรับ Overt AsicBoost / version rolling
+- ใช้ block template จาก RPC และ refresh งานผ่าน ZMQ พร้อม backup poller
+- Web dashboard แบบ realtime ผ่าน WebSocket
+- บันทึก blocks found ลง `data/found_blocks.json`
+- แจ้งเตือนผ่าน `ntfy` เมื่อ `submitblock` สำเร็จ
+- รีเซ็ต `Best Share` ของทุก session เป็น `0` หลังขุดพบบล็อกสำเร็จ
 
----
+## Project Structure
 
-## 📁 Project Structure
-
-```
+```text
 ntpool/
-├── src/
-│   ├── index.ts              # Entry point ของระบบ
-│   ├── config.ts             # โหลดและจัดการค่า Configuration จาก .env
-│   ├── bitcoin/              # RPC & ZMQ client สำหรับเชื่อมต่อกับ Bitcoin Core Node
-│   ├── pool/                 # Job Manager และการบริหารจัดการ Block Template
-│   ├── stratum/              # Stratum TCP Server & Session handling
-│   ├── web/                  # Web Dashboard Express & WebSocket Server
-│   └── simulator/            # Mock Node & Miner สำหรับทดสอบระบบ
-├── public/                   # Web Dashboard UI Frontend (HTML/CSS/JS)
-├── dist/                     # JavaScript build output (เกิดจาก tsc)
-├── Dockerfile                # Multi-stage Docker build configuration
-├── docker-compose.yml        # Docker Compose configuration file
-├── .env.example              # ตัวอย่างไฟล์การตั้งค่า Environment
+├── bitcoin/
+│   ├── rpc.go               # Bitcoin RPC client
+│   └── zmq.go               # ZMQ subscriber for new blocks
+├── config/
+│   └── config.go            # Environment-based configuration loader
+├── crypto/
+│   └── sha256.go            # SHA-256 and block header helpers
+├── pool/
+│   ├── coinbase.go          # Coinbase transaction builder
+│   └── job.go               # Job manager and template conversion
+├── public/
+│   ├── app.js               # Dashboard frontend logic
+│   ├── index.html           # Dashboard UI
+│   └── style.css            # Dashboard styles
+├── stratum/
+│   ├── server.go            # Stratum server and share validation flow
+│   └── session.go           # Session stats, vardiff, best share tracking
+├── web/
+│   └── server.go            # HTTP/WebSocket dashboard server
+├── docker-compose.yml
+├── Dockerfile
+├── go.mod
+├── main.go                  # Application entry point
 └── README.md
 ```
 
----
+## Requirements
 
-## ⚙️ Environment Variables Configuration
+- Go 1.22+
+- Bitcoin-compatible SHA-256 node with RPC enabled
+- ZMQ `rawblock` publisher enabled if you want instant new-block updates
+- Docker / Docker Compose optional
 
-คัดลอกไฟล์ `.env.example` เป็น `.env` และปรับแต่งค่าตามต้องการ:
+## Configuration
+
+คัดลอก `.env.example` เป็น `.env` แล้วแก้ค่าตาม environment ของคุณ
+
+ตัวอย่างบน Linux/macOS:
 
 ```bash
 cp .env.example .env
 ```
 
-| ตัวแปร | รายละเอียด | ค่าเริ่มต้น |
+ตัวแปรที่รองรับในโปรเจกต์ปัจจุบัน:
+
+| Variable | Description | Default |
 | :--- | :--- | :--- |
-| `STRATUM_PORT` | พอร์ตสำหรับเครื่องขุด ASIC เชื่อมต่อ Stratum | `3333` |
-| `WEB_PORT` | พอร์ตสำหรับหน้าเว็บ Web Dashboard UI | `8080` |
-| `DEFAULT_DIFF` | ค่า ความยาก (Difficulty) เริ่มต้นสำหรับ Miner | `1024` |
-| `MIN_DIFF` | ค่า Difficulty ต่ำสุด (VarDiff) | `64` |
-| `MAX_DIFF` | ค่า Difficulty สูงสุด (VarDiff) | `1048576` |
-| `RPC_HOST` | IP/Hostname ของ Bitcoin Core Node RPC | `127.0.0.1` |
-| `RPC_PORT` | พอร์ต RPC ของ Bitcoin Core Node | `8332` |
-| `RPC_USER` | RPC Username ใน `bitcoin.conf` | `bitcoinrpc` |
-| `RPC_PASSWORD` | RPC Password ใน `bitcoin.conf` | `rpcpassword` |
-| `RPC_NETWORK` | เครือข่าย (`mainnet`, `testnet`, `regtest`) | `mainnet` |
-| `ZMQ_HOST` | IP ของ ZMQ Server บน Bitcoin Node (Optional) | `127.0.0.1` |
-| `ZMQ_PORT` | พอร์ต ZMQ rawblock สำหรับการอัปเดตบล็อกใหม่ทันที | `28332` |
-| `POOL_NAME` | ชื่อเรียกของ Pool | `ntpool SHA-256 Solo Pool` |
-| `COINBASE_TEXT` | ข้อความระบุตัวตนที่จะใส่ลงใน Coinbase Transaction | `/ntpool/` |
+| `STRATUM_PORT` | พอร์ตสำหรับ Stratum server | `3333` |
+| `WEB_PORT` | พอร์ตสำหรับ web dashboard | `8080` |
+| `DEFAULT_DIFF` | difficulty เริ่มต้นสำหรับ worker ใหม่ | `1024` |
+| `ENABLE_VARDIFF` | เปิดใช้งาน vardiff หรือไม่ | `false` |
+| `MIN_DIFF` | difficulty ต่ำสุดของ vardiff | `64` |
+| `MAX_DIFF` | difficulty สูงสุดของ vardiff | `1048576` |
+| `VARDIFF_TARGET_SHARES` | จำนวน share เป้าหมายต่อรอบสำหรับ vardiff | `12` |
+| `RPC_HOST` | host ของ Bitcoin RPC | `127.0.0.1` |
+| `RPC_PORT` | พอร์ต Bitcoin RPC | `8332` |
+| `RPC_USER` | RPC username | `bitcoinrpc` |
+| `RPC_PASSWORD` | RPC password | `rpcpassword` |
+| `RPC_NETWORK` | network name ที่ใช้แสดงผล เช่น `mainnet`, `testnet`, `regtest` | `mainnet` |
+| `RPC_ALGO` | อัลกอริทึมของ chain | `sha256d` |
+| `ZMQ_HOST` | host ของ ZMQ publisher | `127.0.0.1` |
+| `ZMQ_PORT` | พอร์ตของ ZMQ `rawblock` | `28332` |
+| `POOL_NAME` | ชื่อ pool | `ntpool SHA-256 Solo Pool` |
+| `COIN_SYMBOL` | symbol ของเหรียญที่ใช้แสดงผล | `BTC` |
+| `COINBASE_TEXT` | ข้อความที่แทรกใน coinbase transaction | `/ntpool/` |
+| `POOL_FEE_PERCENT` | ค่า fee ของ pool | `0.0` |
+| `POOL_FEE_ADDRESS` | ปลายทางสำหรับ fee ของ pool | `""` |
+| `WALLET_ADDRESS` | address สำหรับรับ coinbase payout | `AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr` |
+| `NTFY_SERVER` | URL ของ ntfy server | `http://192.168.1.250:18080` |
+| `NTFY_TOPIC` | topic ปลายทางบน ntfy | `ntpool-blocks` |
+| `NTFY_USER` | username สำหรับ Basic Auth ของ ntfy | `user` |
+| `NTFY_PASSWORD` | password สำหรับ Basic Auth ของ ntfy | `pass` |
 
----
+## Running Locally
 
-## 🚀 Quick Start (Local Development)
-
-### 1. ติดตั้ง Dependencies
-
-```bash
-npm install
-```
-
-### 2. รันในโหมด Development (Hot-Reload)
-
-```bash
-npm run dev
-```
-
-### 3. Build & Run ในโหมด Production
+ติดตั้ง dependency และรันตรงจาก source:
 
 ```bash
-# คอมไพล์ TypeScript เป็น JavaScript
-npm run build
-
-# เริ่มทำงาน Production Server
-npm start
+go run .
 ```
 
----
+หรือ build binary ก่อน:
 
-## 🐳 Running with Docker / Docker Compose
+```bash
+go build -o ntpool .
+./ntpool
+```
 
-### ใช้งานด้วย Docker Compose (แนะนำ)
+บน Windows binary ที่ build จะเป็น `ntpool.exe`
 
-1. ตรวจสอบการตั้งค่าใน `.env`
-2. สั่งรัน Container:
+## Docker
+
+รันด้วย Docker Compose:
 
 ```bash
 docker compose up -d --build
 ```
 
-3. ตรวจสอบ Logs การทำงาน:
+ดู logs:
 
 ```bash
 docker compose logs -f ntpool
 ```
 
-4. หยุดการทำงาน:
+หยุด container:
 
 ```bash
 docker compose down
 ```
 
-### ใช้งานด้วย Docker CLI โดยตรง
+ถ้า Bitcoin node อยู่บน host machine อาจต้องเปิด `extra_hosts` ใน [docker-compose.yml](docker-compose.yml)
 
-```bash
-# Build Docker Image
-docker build -t ntpool .
+## Runtime Notes
 
-# Run Container
-docker run -d \
-  --name ntpool \
-  -p 3333:3333 \
-  -p 8080:8080 \
-  --env-file .env \
-  ntpool
+- Stratum server ฟังที่ `0.0.0.0:STRATUM_PORT`
+- Web dashboard ฟังที่ `0.0.0.0:WEB_PORT` แต่มี middleware จำกัดการเข้าถึงเฉพาะ loopback / private LAN
+- Dashboard ใช้ WebSocket เพื่อ push stats แบบ realtime
+- เมื่อ `submitblock` สำเร็จ ระบบจะส่ง `ntfy` notification และ reset best share ของทุก session
+- รายการ blocks found ถูกเก็บไว้ใน `data/found_blocks.json`
+
+## Connecting Miners
+
+ตั้งค่า miner ดังนี้:
+
+- URL: `stratum+tcp://<SERVER_IP>:3333`
+- Username: `<WALLET_ADDRESS>.<WORKER_NAME>`
+- Password: `x`
+
+ตัวอย่าง:
+
+```text
+bc1qexampleaddressxxxxxxxxxxxxxxxxxxxxxx.s21-01
 ```
 
----
+## Validation
 
-## ⛏️ Connecting Miners to Pool
+คำสั่งที่ใช้เช็กโปรเจกต์หลังแก้โค้ด:
 
-ตั้งค่าเครื่องขุด ASIC หรือ Stratum Miner ซอฟต์แวร์ของคุณดังนี้:
+```bash
+go build ./...
+```
 
-- **URL / Host**: `stratum+tcp://<YOUR_SERVER_IP>:3333`
-- **Worker / User**: `<YOUR_BITCOIN_ADDRESS>.<WORKER_NAME>`
-  - *ตัวอย่าง*: `bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh.antminer_s19`
-- **Password**: `x` (หรือปล่อยว่าง)
+## License
 
----
-
-## 📄 License
-
-MIT License
+MIT

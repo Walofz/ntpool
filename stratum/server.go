@@ -7,9 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/big"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -95,6 +97,86 @@ func (s *StratumServer) saveFoundBlocks() {
 	if err == nil {
 		_ = os.WriteFile(s.blocksFilePath, data, 0644)
 	}
+}
+
+func (s *StratumServer) resetAllBestShares() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, session := range s.sessions {
+		session.ResetBestShare()
+	}
+}
+
+func (s *StratumServer) notifyBlockFound(block FoundBlock) {
+	if s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
+		return
+	}
+
+	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
+	if symbol == "" {
+		symbol = strings.TrimSpace(block.Symbol)
+	}
+	if symbol == "" {
+		symbol = "COIN"
+	}
+
+	body := fmt.Sprintf(
+		"FOUND SOLO %s\n%s #%d\nReward %.8f %s\nMiner %s\nWorker %s",
+		symbol,
+		strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork)),
+		block.Height,
+		block.Reward,
+		symbol,
+		block.Miner,
+		block.Worker,
+	)
+
+	endpoint := strings.TrimRight(s.cfg.NtfyServer, "/") + "/" + strings.TrimLeft(s.cfg.NtfyTopic, "/")
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(body))
+	if err != nil {
+		log.Printf("[ntfy] Failed to create request: %v", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Title", fmt.Sprintf("FOUND SOLO %s", symbol))
+	req.Header.Set("Priority", "urgent")
+	req.Header.Set("Tags", "pickaxe,rotating_light")
+	if s.cfg.NtfyUser != "" || s.cfg.NtfyPassword != "" {
+		req.SetBasicAuth(s.cfg.NtfyUser, s.cfg.NtfyPassword)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("[ntfy] Failed to send block notification: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		log.Printf("[ntfy] Notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
+		return
+	}
+
+	log.Printf("[ntfy] Block notification sent to %s", endpoint)
+}
+
+func (s *StratumServer) isSubmitBlockAccepted(result interface{}, err error) bool {
+	if err != nil {
+		return false
+	}
+
+	if result == nil {
+		return true
+	}
+
+	if resultStr, ok := result.(string); ok {
+		return strings.TrimSpace(resultStr) == ""
+	}
+
+	return false
 }
 
 func (s *StratumServer) Start() error {
@@ -391,6 +473,11 @@ primaryLoop:
 		if s.bitcoinRpc != nil {
 			res, err := s.bitcoinRpc.SubmitBlock(blockHex)
 			log.Printf("[RPC submitblock] Result: %v (err: %v)", res, err)
+			if s.isSubmitBlockAccepted(res, err) {
+				s.resetAllBestShares()
+				s.notifyStats()
+				go s.notifyBlockFound(blockRecord)
+			}
 		}
 	}
 }
