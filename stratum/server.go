@@ -312,13 +312,15 @@ func (s *StratumServer) handleAuthorize(session *StratumSession, id interface{},
 		fullUser, _ = params[0].(string)
 	}
 
-	parts := strings.Split(fullUser, ".")
-	session.MinerAddress = parts[0]
-	if len(parts) > 1 {
+	parts := strings.SplitN(fullUser, ".", 2)
+	if len(parts) == 2 && parts[1] != "" {
 		session.WorkerName = parts[1]
+	} else if fullUser != "" {
+		session.WorkerName = fullUser
 	} else {
 		session.WorkerName = "default"
 	}
+	session.MinerAddress = s.cfg.WalletAddress
 
 	session.IsAuthorized = true
 	s.sendResponse(session, id, true, nil)
@@ -363,10 +365,7 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 		}
 	}
 
-	minerAddr := session.MinerAddress
-	if minerAddr == "" {
-		minerAddr = s.cfg.WalletAddress
-	}
+	minerAddr := s.cfg.WalletAddress
 
 	cb := pool.BuildCoinbaseTransaction(
 		s.cfg,
@@ -529,10 +528,7 @@ func (s *StratumServer) BroadcastJob(job *pool.MiningJob, cleanJobs bool) {
 }
 
 func (s *StratumServer) sendJobToSession(session *StratumSession, job *pool.MiningJob, cleanJobs bool) {
-	minerAddr := session.MinerAddress
-	if minerAddr == "" {
-		minerAddr = s.cfg.WalletAddress
-	}
+	minerAddr := s.cfg.WalletAddress
 
 	cb := pool.BuildCoinbaseTransaction(
 		s.cfg,

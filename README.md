@@ -145,13 +145,16 @@ docker compose down
 ตั้งค่า miner ดังนี้:
 
 - URL: `stratum+tcp://<SERVER_IP>:3333`
-- Username: `<WALLET_ADDRESS>.<WORKER_NAME>`
+- Username: `<WALLET_ADDRESS>.<WORKER_NAME>` หรือ `<ANY_PREFIX>.<WORKER_NAME>`
 - Password: `x`
+
+หมายเหตุ: โปรเจกต์นี้จะใช้ `WALLET_ADDRESS` จาก config เป็นปลายทาง payout เสมอ
+ส่วน prefix หน้า `.` จะถูกละทิ้ง และใช้เฉพาะชื่อหลังจุดเป็น worker name ที่แสดงใน dashboard เท่านั้น
 
 ตัวอย่าง:
 
 ```text
-bc1qexampleaddressxxxxxxxxxxxxxxxxxxxxxx.s21-01
+anyprefix.s21-01
 ```
 
 ## Validation
