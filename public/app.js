@@ -6,6 +6,8 @@ const totalPaidEl = document.getElementById('total-paid');
 const balanceEl = document.getElementById('balance');
 const unpaidEl = document.getElementById('unpaid');
 const jsonOutput = document.getElementById('json-output');
+const heroChipEl = document.getElementById('hero-chip');
+const minersListEl = document.getElementById('miners-list');
 
 let autoTimer = null;
 
@@ -37,6 +39,52 @@ function renderStats(payload) {
   unpaidEl.textContent = unpaid === null ? '-' : unpaid.toFixed(8);
 }
 
+function relativeConnectedAt(iso) {
+  const connectedAt = new Date(iso).getTime();
+  if (!Number.isFinite(connectedAt)) {
+    return '-';
+  }
+
+  const diffSec = Math.max(0, Math.floor((Date.now() - connectedAt) / 1000));
+  if (diffSec < 60) return `${diffSec}s`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
+  return `${Math.floor(diffSec / 3600)}h`;
+}
+
+function renderMiners(payload) {
+  const connected = Number(payload.connectedMiners) || 0;
+  heroChipEl.textContent = `Miners Connected: ${connected}`;
+
+  const miners = Array.isArray(payload.miners) ? payload.miners : [];
+  if (miners.length === 0) {
+    minersListEl.innerHTML = '<p class="miners-empty">No miners connected.</p>';
+    return;
+  }
+
+  minersListEl.innerHTML = miners.map((miner) => `
+    <article class="miner-row">
+      <div class="miner-main">
+        <strong>${miner.workerName || '-'}</strong>
+        <span>${miner.username || '-'}</span>
+      </div>
+      <div class="miner-meta">
+        <span>${miner.remoteAddr || '-'}</span>
+        <span>online ${relativeConnectedAt(miner.connectedAt)}</span>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function loadMiners() {
+  const response = await fetch('/api/zpool/miners', { cache: 'no-store' });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`${response.status} ${body}`);
+  }
+  const payload = JSON.parse(body);
+  renderMiners(payload);
+}
+
 async function loadWalletEx() {
   const address = addressInput.value.trim();
   const query = address ? `?address=${encodeURIComponent(address)}` : '';
@@ -56,6 +104,7 @@ async function loadWalletEx() {
     const json = JSON.parse(body);
     renderStats(json);
     jsonOutput.textContent = JSON.stringify(json, null, 2);
+    await loadMiners();
     statusText.textContent = `Updated at ${new Date().toLocaleTimeString()}`;
     statusText.className = 'status ok';
   } catch (error) {
@@ -69,13 +118,20 @@ function toggleAutoRefresh() {
     clearInterval(autoTimer);
     autoTimer = null;
     autoBtn.textContent = 'Auto: OFF';
+    autoBtn.classList.remove('active');
     return;
   }
 
   autoTimer = setInterval(loadWalletEx, 30000);
   autoBtn.textContent = 'Auto: ON';
+  autoBtn.classList.add('active');
 }
 
 refreshBtn.addEventListener('click', loadWalletEx);
 autoBtn.addEventListener('click', toggleAutoRefresh);
+addressInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    loadWalletEx();
+  }
+});
 loadWalletEx();

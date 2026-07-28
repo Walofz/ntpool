@@ -21,7 +21,7 @@ func main() {
 		}
 	}()
 
-	dashboard := web.NewZpoolProxyServer(cfg)
+	dashboard := web.NewZpoolProxyServer(cfg, stratumProxy)
 	if err := dashboard.Start(); err != nil {
 		log.Fatalf("Failed to start zpool proxy dashboard: %v", err)
 	}
