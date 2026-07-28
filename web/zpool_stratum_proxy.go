@@ -86,7 +86,7 @@ func (p *ZpoolStratumProxy) forwardMinerToUpstream(miner net.Conn, upstream net.
 	}
 }
 
-// rewriteLine intercepts mining.authorize and injects the configured password.
+// rewriteLine intercepts mining.authorize and injects the configured username and/or password.
 // All other messages are passed through unchanged.
 func (p *ZpoolStratumProxy) rewriteLine(line []byte) []byte {
 	var msg map[string]interface{}
@@ -104,15 +104,26 @@ func (p *ZpoolStratumProxy) rewriteLine(line []byte) []byte {
 		return line
 	}
 
-	injectedPassword := strings.TrimSpace(p.cfg.ZpoolStratumPassword)
-	if injectedPassword == "" {
-		return line
+	// Inject username (params[0]) if configured, preserve worker suffix from miner
+	injectedUsername := strings.TrimSpace(p.cfg.ZpoolStratumUsername)
+	if injectedUsername != "" {
+		workerSuffix := ""
+		if original, ok := params[0].(string); ok {
+			if idx := strings.LastIndex(original, "."); idx >= 0 {
+				workerSuffix = original[idx:] // includes the dot
+			}
+		}
+		params[0] = injectedUsername + workerSuffix
 	}
 
-	if len(params) < 2 {
-		params = append(params, injectedPassword)
-	} else {
-		params[1] = injectedPassword
+	// Inject password (params[1]) if configured
+	injectedPassword := strings.TrimSpace(p.cfg.ZpoolStratumPassword)
+	if injectedPassword != "" {
+		if len(params) < 2 {
+			params = append(params, injectedPassword)
+		} else {
+			params[1] = injectedPassword
+		}
 	}
 	msg["params"] = params
 
