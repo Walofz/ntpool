@@ -38,8 +38,11 @@ type Config struct {
 	ZpoolWalletAddress  string
 	DashboardUsername   string
 	DashboardPassword   string
-	ZpoolNotifyPayout   bool
-	ZpoolPollSeconds    int
+	ZpoolNotifyPayout    bool
+	ZpoolPollSeconds     int
+	ZpoolStratumHost     string
+	ZpoolStratumPort     int
+	ZpoolStratumPassword string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -110,7 +113,10 @@ func LoadConfig() *Config {
 		ZpoolWalletAddress:  getEnv("ZPOOL_WALLET_ADDRESS", ""),
 		DashboardUsername:   getEnv("DASHBOARD_USERNAME", ""),
 		DashboardPassword:   getEnv("DASHBOARD_PASSWORD", ""),
-		ZpoolNotifyPayout:   getEnvBool("ZPOOL_NOTIFY_PAYOUT", true),
-		ZpoolPollSeconds:    getEnvInt("ZPOOL_POLL_SECONDS", 60),
+		ZpoolNotifyPayout:    getEnvBool("ZPOOL_NOTIFY_PAYOUT", true),
+		ZpoolPollSeconds:     getEnvInt("ZPOOL_POLL_SECONDS", 60),
+		ZpoolStratumHost:     getEnv("ZPOOL_STRATUM_HOST", "sha256.mine.zpool.ca"),
+		ZpoolStratumPort:     getEnvInt("ZPOOL_STRATUM_PORT", 3256),
+		ZpoolStratumPassword: getEnv("ZPOOL_STRATUM_PASSWORD", "c=BTC"),
 	}
 }
