@@ -3,117 +3,37 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>zpool proxy - SHA-256 Solo Mining Proxy</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <title>zpool proxy dashboard</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="background-glow"></div>
+  <main class="container">
+    <h1>zpool proxy dashboard</h1>
+    <p class="subtitle">WalletEX viewer and Stratum proxy status page.</p>
 
-  <header class="navbar">
-    <div class="logo-container">
-      <div class="logo-icon">⚡</div>
-      <div class="logo-text">
-        <span class="brand">ZP</span>OOL PROXY
-        <span class="badge">SHA-256 Proxy • CKPool Engine</span>
+    <section class="card">
+      <div class="row">
+        <label for="address-input">Wallet address</label>
+        <input id="address-input" type="text" placeholder="Leave empty to use ZPOOL_WALLET_ADDRESS">
       </div>
-    </div>
-    <div class="stratum-info">
-      <span class="pulse-dot"></span>
-      Stratum: <code id="stratum-url">stratum+tcp://localhost:3333</code>
-    </div>
-  </header>
-
-  <main class="dashboard-container">
-    <!-- Hero Stats Grid -->
-    <section class="stats-grid">
-      <div class="card stat-card">
-        <div class="card-icon">🚀</div>
-        <div class="stat-meta">
-          <span class="label">Pool Hashrate (1m)</span>
-          <h2 id="pool-hashrate" class="stat-value">0.00 TH/s</h2>
-        </div>
+      <div class="row buttons">
+        <button id="refresh-btn" type="button">Refresh</button>
+        <button id="auto-btn" type="button">Auto: OFF</button>
       </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">⛏️</div>
-        <div class="stat-meta">
-          <span class="label">Active Workers</span>
-          <h2 id="connected-workers" class="stat-value">0</h2>
-        </div>
-      </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">📦</div>
-        <div class="stat-meta">
-          <span class="label">Block Height</span>
-          <h2 id="block-height" class="stat-value">0</h2>
-        </div>
-      </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">🌐</div>
-        <div class="stat-meta">
-          <span class="label">Network Difficulty</span>
-          <h2 id="network-diff" class="stat-value">0.00</h2>
-        </div>
-      </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">🏆</div>
-        <div class="stat-meta">
-          <span class="label">Blocks Mined</span>
-          <h2 id="blocks-count" class="stat-value">0</h2>
-        </div>
-      </div>
+      <p id="status-text" class="status">Ready</p>
     </section>
 
-    <div class="content-split">
-      <!-- Active Connected Workers Table -->
-      <section class="table-section card">
-        <div class="table-header">
-          <h3>⚡ Connected ASIC Workers</h3>
-          <span id="worker-badge" class="badge">0 Online</span>
-        </div>
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th>Miner Address</th>
-                <th>Worker</th>
-                <th>Diff</th>
-                <th>Hashrate (1m)</th>
-                <th>Best Share</th>
-                <th>AsicBoost</th>
-              </tr>
-            </thead>
-            <tbody id="workers-tbody">
-              <tr>
-                <td colspan="6" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <section class="card stats">
+      <div><span class="label">Total paid</span><strong id="total-paid">-</strong></div>
+      <div><span class="label">Balance</span><strong id="balance">-</strong></div>
+      <div><span class="label">Unpaid</span><strong id="unpaid">-</strong></div>
+    </section>
 
-      <!-- Blocks Mined Ledger -->
-      <section class="blocks-section card">
-        <div class="table-header">
-          <h3>💎 Solo Blocks Found (Latest 3)</h3>
-        </div>
-        <div id="blocks-list" class="blocks-list">
-          <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
-        </div>
-      </section>
-    </div>
+    <section class="card">
+      <h2>Raw WalletEX JSON</h2>
+      <pre id="json-output">No data loaded.</pre>
+    </section>
   </main>
-
-  <footer>
-    <p>Powered by <strong>zpool proxy SHA-256 Engine</strong> • Modelled after CKPool architecture • Direct Coinbase Payout</p>
-  </footer>
-
   <script src="app.js"></script>
 </body>
 </html>

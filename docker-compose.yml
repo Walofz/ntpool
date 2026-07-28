@@ -13,27 +13,21 @@ services:
     environment:
       - STRATUM_PORT=3333
       - WEB_PORT=8080
-      - DEFAULT_DIFF=${DEFAULT_DIFF:-1024}
-      - ENABLE_VARDIFF=${ENABLE_VARDIFF:-false}
-      - MIN_DIFF=${MIN_DIFF:-64}
-      - MAX_DIFF=${MAX_DIFF:-1048576}
-      - VARDIFF_TARGET_SHARES=${VARDIFF_TARGET_SHARES:-12}
-      - RPC_HOST=${RPC_HOST:-127.0.0.1}
-      - RPC_PORT=${RPC_PORT:-8332}
-      - RPC_USER=${RPC_USER:-bitcoinrpc}
-      - RPC_PASSWORD=${RPC_PASSWORD:-rpcpassword}
-      - RPC_NETWORK=${RPC_NETWORK:-mainnet}
-      - RPC_ALGO=${RPC_ALGO:-sha256d}
-      - ZMQ_HOST=${ZMQ_HOST:-127.0.0.1}
-      - ZMQ_PORT=${ZMQ_PORT:-28332}
-      - POOL_NAME=${POOL_NAME:-zpool proxy SHA-256 Solo Pool}
-      - COIN_SYMBOL=${COIN_SYMBOL:-BTC}
-      - COINBASE_TEXT=${COINBASE_TEXT:-/zpool-proxy/}
-      - POOL_FEE_PERCENT=${POOL_FEE_PERCENT:-0.0}
-      - POOL_FEE_ADDRESS=${POOL_FEE_ADDRESS:-}
-      - WALLET_ADDRESS=${WALLET_ADDRESS:-AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr}
+      - ZPOOL_API_BASE_URL=${ZPOOL_API_BASE_URL:-https://www.zpool.ca/api}
+      - ZPOOL_API_USERNAME=${ZPOOL_API_USERNAME:-}
+      - ZPOOL_API_PASSWORD=${ZPOOL_API_PASSWORD:-}
+      - ZPOOL_WALLET_ADDRESS=${ZPOOL_WALLET_ADDRESS:-}
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
+      - ZPOOL_NOTIFY_PAYOUT=${ZPOOL_NOTIFY_PAYOUT:-true}
+      - ZPOOL_POLL_SECONDS=${ZPOOL_POLL_SECONDS:-60}
+      - ZPOOL_STRATUM_HOST=${ZPOOL_STRATUM_HOST:-sha256.mine.zpool.ca}
+      - ZPOOL_STRATUM_PORT=${ZPOOL_STRATUM_PORT:-3256}
+      - ZPOOL_STRATUM_USERNAME=${ZPOOL_STRATUM_USERNAME:-}
+      - ZPOOL_STRATUM_PASSWORD=${ZPOOL_STRATUM_PASSWORD:-c=BTC}
+      - NTFY_SERVER=${NTFY_SERVER:-}
+      - NTFY_TOPIC=${NTFY_TOPIC:-zpool-proxy-blocks}
+      - NTFY_USER=${NTFY_USER:-}
+      - NTFY_PASSWORD=${NTFY_PASSWORD:-}
     volumes:
       - ./data:/app/data
-    # Uncomment if connecting to Bitcoin Core running on the host machine
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
