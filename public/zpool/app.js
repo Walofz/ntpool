@@ -1,78 +1,103 @@
-function getNumeric(source, keys) {
-  if (!source || typeof source !== 'object') {
-    return '-';
-  }
-
-  for (const key of keys) {
-    const value = source[key];
-    if (value !== undefined && value !== null && value !== '') {
-      return value;
-    }
-  }
-
-  return '-';
+function fmt8(val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return '-';
+  return n.toFixed(8);
 }
 
-function prettyPrint(targetId, data) {
-  const target = document.getElementById(targetId);
-  target.textContent = JSON.stringify(data, null, 2);
+function timeAgo(unixTs) {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - unixTs;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function readWalletRoot(walletResponse) {
-  if (walletResponse && typeof walletResponse === 'object' && walletResponse.getuserbalance) {
-    return walletResponse.getuserbalance;
+function truncateTx(tx) {
+  if (!tx || tx.length < 16) return tx || '-';
+  return tx.substring(0, 10) + '...' + tx.substring(tx.length - 8);
+}
+
+async function fetchWalletEx() {
+  const resp = await fetch('/api/zpool/walletex', { headers: { Accept: 'application/json' } });
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`walletex failed (${resp.status}): ${body}`);
   }
-  return walletResponse;
+  return resp.json();
 }
 
-async function fetchJson(path) {
-  const response = await fetch(path, {
-    headers: {
-      'Accept': 'application/json'
-    }
-  });
+function renderStats(data) {
+  document.getElementById('stat-unpaid').textContent  = fmt8(data.unpaid);
+  document.getElementById('stat-unsold').textContent  = fmt8(data.unsold);
+  document.getElementById('stat-balance').textContent = fmt8(data.balance);
+  document.getElementById('stat-paid24h').textContent = fmt8(data.paid24h);
+  document.getElementById('stat-total').textContent   = fmt8(data.total);
+}
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`${path} failed (${response.status}): ${body}`);
+function renderMiners(miners) {
+  const tbody = document.getElementById('miners-tbody');
+  const badge = document.getElementById('miner-badge');
+  const list = Array.isArray(miners) ? miners : [];
+  badge.textContent = `${list.length} Online`;
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-muted">No miners connected</td></tr>`;
+    return;
   }
 
-  return response.json();
+  tbody.innerHTML = list.map(m => `
+    <tr>
+      <td><span class="algo-badge">${m.algo || '-'}</span></td>
+      <td>${m.difficulty ?? '-'}</td>
+      <td>${(m.accepted ?? 0).toFixed(2)}</td>
+      <td>${m.rejected ?? 0}</td>
+      <td style="font-size:0.8rem;color:var(--text-muted)">${m.version || '-'}</td>
+    </tr>
+  `).join('');
 }
 
-async function refreshDashboard() {
-  const refreshButton = document.getElementById('refresh-btn');
-  refreshButton.disabled = true;
-  refreshButton.textContent = 'Refreshing...';
+function renderPayouts(payouts) {
+  const container = document.getElementById('payouts-list');
+  const list = Array.isArray(payouts) ? payouts.slice().reverse().slice(0, 10) : [];
+
+  if (list.length === 0) {
+    container.innerHTML = `<div class="empty-state">No payouts yet</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(p => `
+    <div class="payout-card">
+      <div class="payout-title">
+        <span>+${p.amount} BTC</span>
+        <span class="payout-time">${timeAgo(p.time)}</span>
+      </div>
+      <div class="payout-tx">TX: ${truncateTx(p.tx)}</div>
+    </div>
+  `).join('');
+}
+
+async function refresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = '⟳ Refreshing...';
 
   try {
-    const [statusData, walletData, currenciesData] = await Promise.all([
-      fetchJson('/api/zpool/status'),
-      fetchJson('/api/zpool/wallet'),
-      fetchJson('/api/zpool/currencies')
-    ]);
-
-    prettyPrint('status-json', statusData);
-    prettyPrint('wallet-json', walletData);
-    prettyPrint('currencies-json', currenciesData);
-
-    const walletRoot = readWalletRoot(walletData);
-
-    document.getElementById('status-hashrate').textContent = getNumeric(statusData, ['hashrate', 'hashrate_shared']);
-    document.getElementById('status-miners').textContent = getNumeric(statusData, ['miners']);
-    document.getElementById('status-workers').textContent = getNumeric(statusData, ['workers']);
-    document.getElementById('wallet-immature').textContent = getNumeric(walletRoot, ['immature', 'unconfirmed']);
-    document.getElementById('wallet-balance').textContent = getNumeric(walletRoot, ['balance', 'confirmed']);
-    document.getElementById('wallet-paid').textContent = getNumeric(walletRoot, ['paid24h', 'totalpaid']);
-  } catch (error) {
-    document.getElementById('status-json').textContent = error.message;
-    document.getElementById('wallet-json').textContent = error.message;
-    document.getElementById('currencies-json').textContent = error.message;
+    const data = await fetchWalletEx();
+    renderStats(data);
+    renderMiners(data.miners);
+    renderPayouts(data.payouts);
+    document.getElementById('last-updated').textContent =
+      'Updated ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    document.getElementById('last-updated').textContent = 'Error: ' + err.message;
   } finally {
-    refreshButton.disabled = false;
-    refreshButton.textContent = 'Refresh';
+    btn.disabled = false;
+    btn.textContent = '⟳ Refresh';
   }
 }
 
-document.getElementById('refresh-btn').addEventListener('click', refreshDashboard);
-refreshDashboard();
+document.getElementById('refresh-btn').addEventListener('click', refresh);
+
+refresh();
+setInterval(refresh, 60000);

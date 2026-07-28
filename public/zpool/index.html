@@ -3,54 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zpool Proxy Dashboard</title>
+  <title>Zpool Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="container">
-    <header class="header">
-      <div>
-        <h1>Zpool Proxy Dashboard</h1>
-        <p>Data fetched from zpool.ca through localhost proxy</p>
+  <div class="background-glow"></div>
+
+  <header class="navbar">
+    <div class="logo-container">
+      <div class="logo-icon">⛏️</div>
+      <div class="logo-text">
+        <span class="brand">ZPOOL</span> DASHBOARD
+        <span class="badge">zpool.ca proxy</span>
       </div>
-      <button id="refresh-btn" type="button">Refresh</button>
-    </header>
+    </div>
+    <div class="header-right">
+      <span id="last-updated" class="last-updated">-</span>
+      <button id="refresh-btn" type="button" class="refresh-btn">⟳ Refresh</button>
+    </div>
+  </header>
 
-    <section class="cards">
-      <article class="card">
-        <h2>Status</h2>
-        <div class="metric-grid">
-          <p><span>Hashrate</span><strong id="status-hashrate">-</strong></p>
-          <p><span>Miners</span><strong id="status-miners">-</strong></p>
-          <p><span>Workers</span><strong id="status-workers">-</strong></p>
+  <main class="dashboard-container">
+    <!-- Stats Grid -->
+    <section class="stats-grid">
+      <div class="card stat-card">
+        <div class="card-icon">💰</div>
+        <div class="stat-meta">
+          <span class="label">Unpaid</span>
+          <h2 id="stat-unpaid" class="stat-value">-</h2>
         </div>
-      </article>
-
-      <article class="card">
-        <h2>Wallet</h2>
-        <div class="metric-grid">
-          <p><span>Immature</span><strong id="wallet-immature">-</strong></p>
-          <p><span>Balance</span><strong id="wallet-balance">-</strong></p>
-          <p><span>Paid</span><strong id="wallet-paid">-</strong></p>
+      </div>
+      <div class="card stat-card">
+        <div class="card-icon">📦</div>
+        <div class="stat-meta">
+          <span class="label">Unsold</span>
+          <h2 id="stat-unsold" class="stat-value">-</h2>
         </div>
-      </article>
+      </div>
+      <div class="card stat-card">
+        <div class="card-icon">🏦</div>
+        <div class="stat-meta">
+          <span class="label">Balance</span>
+          <h2 id="stat-balance" class="stat-value">-</h2>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="card-icon">📅</div>
+        <div class="stat-meta">
+          <span class="label">Paid 24h</span>
+          <h2 id="stat-paid24h" class="stat-value">-</h2>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="card-icon">🏆</div>
+        <div class="stat-meta">
+          <span class="label">Total Paid</span>
+          <h2 id="stat-total" class="stat-value">-</h2>
+        </div>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>/api/zpool/status</h2>
-      <pre id="status-json">Loading...</pre>
-    </section>
+    <div class="content-split">
+      <!-- Miners Table -->
+      <section class="table-section card">
+        <div class="table-header">
+          <h3>⚡ Connected Miners</h3>
+          <span id="miner-badge" class="badge">0 Online</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Algo</th>
+                <th>Difficulty</th>
+                <th>Accepted</th>
+                <th>Rejected</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody id="miners-tbody">
+              <tr><td colspan="5" class="text-muted">No miners connected</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-    <section class="card">
-      <h2>/api/zpool/wallet</h2>
-      <pre id="wallet-json">Loading...</pre>
-    </section>
-
-    <section class="card">
-      <h2>/api/zpool/currencies</h2>
-      <pre id="currencies-json">Loading...</pre>
-    </section>
+      <!-- Payouts -->
+      <section class="blocks-section card">
+        <div class="table-header">
+          <h3>💎 Recent Payouts</h3>
+        </div>
+        <div id="payouts-list" class="blocks-list">
+          <div class="empty-state">No payouts yet</div>
+        </div>
+      </section>
+    </div>
   </main>
+
+  <footer>
+    <p>Powered by <strong>ntpool</strong> zpool-proxy mode • Data from <a href="https://zpool.ca" target="_blank">zpool.ca</a></p>
+  </footer>
+
   <script src="app.js"></script>
 </body>
 </html>
