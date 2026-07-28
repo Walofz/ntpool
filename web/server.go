@@ -14,10 +14,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"ntpool/config"
-	"ntpool/crypto"
-	"ntpool/pool"
-	"ntpool/stratum"
+	"zpoolproxy/config"
+	"zpoolproxy/crypto"
+	"zpoolproxy/pool"
+	"zpoolproxy/stratum"
 )
 
 type WebDashboardServer struct {

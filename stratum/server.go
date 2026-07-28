@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	"ntpool/bitcoin"
-	"ntpool/config"
-	"ntpool/crypto"
-	"ntpool/pool"
+	"zpoolproxy/bitcoin"
+	"zpoolproxy/config"
+	"zpoolproxy/crypto"
+	"zpoolproxy/pool"
 )
 
 const vardiffSubmitGraceWindow = 15 * time.Second

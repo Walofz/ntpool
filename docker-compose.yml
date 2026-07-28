@@ -1,9 +1,9 @@
 services:
-  ntpool:
+  zpool-proxy:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ntpool
+    container_name: zpool-proxy
     restart: unless-stopped
     ports:
       - "${STRATUM_PORT:-3333}:3333"
@@ -26,9 +26,9 @@ services:
       - RPC_ALGO=${RPC_ALGO:-sha256d}
       - ZMQ_HOST=${ZMQ_HOST:-127.0.0.1}
       - ZMQ_PORT=${ZMQ_PORT:-28332}
-      - POOL_NAME=${POOL_NAME:-ntpool SHA-256 Solo Pool}
+      - POOL_NAME=${POOL_NAME:-zpool proxy SHA-256 Solo Pool}
       - COIN_SYMBOL=${COIN_SYMBOL:-BTC}
-      - COINBASE_TEXT=${COINBASE_TEXT:-/ntpool/}
+      - COINBASE_TEXT=${COINBASE_TEXT:-/zpool-proxy/}
       - POOL_FEE_PERCENT=${POOL_FEE_PERCENT:-0.0}
       - POOL_FEE_ADDRESS=${POOL_FEE_ADDRESS:-}
       - WALLET_ADDRESS=${WALLET_ADDRESS:-AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr}

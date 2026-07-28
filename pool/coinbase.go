@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	"ntpool/config"
+	"zpoolproxy/config"
 )
 
 type CoinbaseParts struct {

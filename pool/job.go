@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"ntpool/config"
-	"ntpool/crypto"
+	"zpoolproxy/config"
+	"zpoolproxy/crypto"
 )
 
 type MiningJob struct {
