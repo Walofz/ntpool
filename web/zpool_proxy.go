@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -39,7 +38,7 @@ func (s *ZpoolProxyServer) Start() error {
 	mux.HandleFunc("/api/zpool/currencies", s.handleCurrencies)
 	mux.HandleFunc("/api/zpool/wallet", s.handleWallet)
 
-	handler := loopbackOnly(s.localAuth(mux))
+	handler := lanOnly(s.localAuth(mux))
 	go s.startPayoutMonitor()
 
 	addr := fmt.Sprintf(":%d", s.cfg.WebPort)
@@ -116,31 +115,6 @@ func (s *ZpoolProxyServer) matchesDashboardAuth(username, password string) bool 
 	usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(s.cfg.DashboardUsername)) == 1
 	passwordMatch := subtle.ConstantTimeCompare([]byte(password), []byte(s.cfg.DashboardPassword)) == 1
 	return usernameMatch && passwordMatch
-}
-
-func loopbackOnly(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !isLoopbackClient(r.RemoteAddr) {
-			http.Error(rw, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
-}
-
-func isLoopbackClient(remoteAddr string) bool {
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		host = remoteAddr
-	}
-
-	ip := net.ParseIP(strings.TrimSpace(host))
-	if ip == nil {
-		return false
-	}
-
-	return ip.IsLoopback()
 }
 
 func (s *ZpoolProxyServer) handleStatus(rw http.ResponseWriter, r *http.Request) {
@@ -241,38 +215,37 @@ func (s *ZpoolProxyServer) fetchWalletTotalPaid(address string) (float64, error)
 		root = nested
 	}
 
-	totalPaid, ok := getNumericField(root, "totalpaid")
+	totalPaid, ok := getNumericField(root, "totalpaid", "total", "paid")
 	if !ok {
-		return 0, fmt.Errorf("totalpaid not found in wallet response")
+		return 0, fmt.Errorf("totalpaid/total not found in wallet response")
 	}
 
 	return totalPaid, nil
 }
 
-func getNumericField(source map[string]interface{}, key string) (float64, bool) {
-	value, ok := source[key]
-	if !ok || value == nil {
-		return 0, false
-	}
+func getNumericField(source map[string]interface{}, keys ...string) (float64, bool) {
+	for _, key := range keys {
+		value, ok := source[key]
+		if !ok || value == nil {
+			continue
+		}
 
-	switch typed := value.(type) {
-	case float64:
-		return typed, true
-	case string:
-		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
-		if err != nil {
-			return 0, false
+		switch typed := value.(type) {
+		case float64:
+			return typed, true
+		case string:
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+			if err == nil {
+				return parsed, true
+			}
+		case json.Number:
+			parsed, err := typed.Float64()
+			if err == nil {
+				return parsed, true
+			}
 		}
-		return parsed, true
-	case json.Number:
-		parsed, err := typed.Float64()
-		if err != nil {
-			return 0, false
-		}
-		return parsed, true
-	default:
-		return 0, false
 	}
+	return 0, false
 }
 
 func (s *ZpoolProxyServer) notifyPayout(address string, paidDelta float64) {
