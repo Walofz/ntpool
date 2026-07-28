@@ -9,7 +9,7 @@ import (
 	"net"
 	"time"
 
-	"ntpool/config"
+	"zpoolproxy/config"
 )
 
 type ZmqBlockSubscriber struct {

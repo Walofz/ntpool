@@ -7,11 +7,11 @@ import (
 	"syscall"
 	"time"
 
-	"ntpool/bitcoin"
-	"ntpool/config"
-	"ntpool/pool"
-	"ntpool/stratum"
-	"ntpool/web"
+	"zpoolproxy/bitcoin"
+	"zpoolproxy/config"
+	"zpoolproxy/pool"
+	"zpoolproxy/stratum"
+	"zpoolproxy/web"
 )
 
 func main() {
@@ -76,5 +76,5 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
 
-	log.Printf("[ntpool Go] Shutting down pool gracefully...")
+	log.Printf("[zpool proxy Go] Shutting down pool gracefully...")
 }

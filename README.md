@@ -1,10 +1,10 @@
-﻿# ntpool
+﻿# zpool proxy
 
 High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt AsicBoost support, a LAN-only realtime web dashboard, and optional `ntfy` block-found notifications.
 
 ## Overview
 
-`ntpool` เป็น solo mining pool แบบพึ่งพา node ของตัวเอง โดยเน้น path การแจกงานและตรวจ share ที่ตรงไปตรงมา ใช้ Bitcoin RPC สำหรับ block template, ใช้ ZMQ สำหรับรับ block notification แบบทันที, และมี web dashboard สำหรับดู worker, hashrate, difficulty, best share, และ blocks found
+`zpool proxy` เป็น solo mining proxy แบบพึ่งพา node ของตัวเอง โดยเน้น path การแจกงานและตรวจ share ที่ตรงไปตรงมา ใช้ Bitcoin RPC สำหรับ block template, ใช้ ZMQ สำหรับรับ block notification แบบทันที, และมี web dashboard สำหรับดู worker, hashrate, difficulty, best share, และ blocks found
 
 ฟีเจอร์หลัก:
 
@@ -19,7 +19,7 @@ High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt 
 ## Project Structure
 
 ```text
-ntpool/
+zpool-proxy/
 ├── bitcoin/
 │   ├── rpc.go               # Bitcoin RPC client
 │   └── zmq.go               # ZMQ subscriber for new blocks
@@ -78,14 +78,14 @@ cp .env.example .env
 | `RPC_ALGO` | อัลกอริทึมของ chain | `sha256d` |
 | `ZMQ_HOST` | host ของ ZMQ publisher | `127.0.0.1` |
 | `ZMQ_PORT` | พอร์ตของ ZMQ `rawblock` | `28332` |
-| `POOL_NAME` | ชื่อ pool | `ntpool SHA-256 Solo Pool` |
+| `POOL_NAME` | ชื่อ pool | `zpool proxy SHA-256 Solo Pool` |
 | `COIN_SYMBOL` | symbol ของเหรียญที่ใช้แสดงผล | `BTC` |
-| `COINBASE_TEXT` | ข้อความที่แทรกใน coinbase transaction | `/ntpool/` |
+| `COINBASE_TEXT` | ข้อความที่แทรกใน coinbase transaction | `/zpool-proxy/` |
 | `POOL_FEE_PERCENT` | ค่า fee ของ pool | `0.0` |
 | `POOL_FEE_ADDRESS` | ปลายทางสำหรับ fee ของ pool | `""` |
 | `WALLET_ADDRESS` | address สำหรับรับ coinbase payout | `AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr` |
 | `NTFY_SERVER` | URL ของ ntfy server | `http://192.168.1.250:18080` |
-| `NTFY_TOPIC` | topic ปลายทางบน ntfy | `ntpool-blocks` |
+| `NTFY_TOPIC` | topic ปลายทางบน ntfy | `zpool-proxy-blocks` |
 | `NTFY_USER` | username สำหรับ Basic Auth ของ ntfy | `user` |
 | `NTFY_PASSWORD` | password สำหรับ Basic Auth ของ ntfy | `pass` |
 
@@ -98,17 +98,17 @@ go run .
 หรือ build binary ก่อน:
 
 ```bash
-go build -o ntpool .
-./ntpool
+go build -o zpool-proxy .
+./zpool-proxy
 ```
 
-บน Windows binary ที่ build จะเป็น `ntpool.exe`
+บน Windows binary ที่ build จะเป็น `zpool-proxy.exe`
 
 ## Docker
 
 ```bash
 docker compose up -d --build
-docker compose logs -f ntpool
+docker compose logs -f zpool-proxy
 docker compose down
 ```
 

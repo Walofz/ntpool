@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"ntpool/config"
+	"zpoolproxy/config"
 )
 
 type BitcoinRpcClient struct {
@@ -30,7 +30,7 @@ func NewBitcoinRpcClient(cfg *config.Config) *BitcoinRpcClient {
 func (c *BitcoinRpcClient) Call(method string, params []interface{}) (map[string]interface{}, error) {
 	reqBody := map[string]interface{}{
 		"jsonrpc": "1.0",
-		"id":      "ntpool-go",
+		"id":      "zpool-proxy-go",
 		"method":  method,
 		"params":  params,
 	}

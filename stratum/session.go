@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"ntpool/config"
+	"zpoolproxy/config"
 )
 
 type ShareHistory struct {
