@@ -17,25 +17,6 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
-	if cfg.AppMode == "zpool-proxy" {
-		log.Printf("==========================================================")
-		log.Printf("   🔁 ntpool Zpool Proxy Dashboard")
-		log.Printf("==========================================================")
-
-		zpoolStratumProxy := web.NewZpoolStratumProxy(cfg)
-		go func() {
-			if err := zpoolStratumProxy.Start(); err != nil {
-				log.Fatalf("Failed to start Zpool Stratum proxy: %v", err)
-			}
-		}()
-
-		zpoolProxyServer := web.NewZpoolProxyServer(cfg)
-		if err := zpoolProxyServer.Start(); err != nil {
-			log.Fatalf("Failed to start Zpool proxy server: %v", err)
-		}
-		return
-	}
-
 	log.Printf("==========================================================")
 	log.Printf("   🚀 %s (Go High-Performance Engine)", cfg.PoolName)
 	log.Printf("==========================================================")
