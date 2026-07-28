@@ -4,7 +4,10 @@ High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt 
 
 ## Overview
 
-`ntpool` เป็น solo mining pool แบบพึ่งพา node ของตัวเอง โดยเน้น path การแจกงานและตรวจ share ที่ตรงไปตรงมา ใช้ Bitcoin RPC สำหรับ block template, ใช้ ZMQ สำหรับรับ block notification แบบทันที, และมี web dashboard สำหรับดู worker, hashrate, difficulty, best share, และ blocks found
+`ntpool` เป็นโปรเจกต์ Go ที่รองรับ 2 โหมดหลัก:
+
+1. `ntpool` (ค่าเริ่มต้น): solo mining pool แบบพึ่งพา node ของตัวเอง โดยเน้น path การแจกงานและตรวจ share ที่ตรงไปตรงมา ใช้ Bitcoin RPC สำหรับ block template, ใช้ ZMQ สำหรับรับ block notification แบบทันที, และมี web dashboard สำหรับดู worker, hashrate, difficulty, best share, และ blocks found
+2. `zpool-proxy`: localhost dashboard + API proxy สำหรับดึงข้อมูลจาก `zpool.ca` ผ่านเครื่องของคุณ
 
 ฟีเจอร์หลักของโปรเจกต์ปัจจุบัน:
 
@@ -92,6 +95,44 @@ cp .env.example .env
 | `NTFY_TOPIC` | topic ปลายทางบน ntfy | `ntpool-blocks` |
 | `NTFY_USER` | username สำหรับ Basic Auth ของ ntfy | `user` |
 | `NTFY_PASSWORD` | password สำหรับ Basic Auth ของ ntfy | `pass` |
+| `ZPOOL_API_BASE_URL` | upstream base URL สำหรับ Zpool API (ใช้ในโหมด `zpool-proxy`) | `https://www.zpool.ca/api` |
+| `ZPOOL_API_USERNAME` | username สำหรับ upstream Basic Auth ของ Zpool API (optional) | `""` |
+| `ZPOOL_API_PASSWORD` | password สำหรับ upstream Basic Auth ของ Zpool API (optional) | `""` |
+| `ZPOOL_WALLET_ADDRESS` | wallet address เริ่มต้นสำหรับ `/api/zpool/wallet` (ใช้ในโหมด `zpool-proxy`) | `""` |
+| `DASHBOARD_USERNAME` | username สำหรับล็อกอินหน้า dashboard บน localhost (optional) | `""` |
+| `DASHBOARD_PASSWORD` | password สำหรับล็อกอินหน้า dashboard บน localhost (optional) | `""` |
+| `APP_MODE` | โหมดการทำงานของแอป (`ntpool` หรือ `zpool-proxy`) | `ntpool` |
+
+## Zpool Proxy Dashboard Mode
+
+ตั้งค่าตัวอย่างใน `.env`:
+
+```env
+APP_MODE=zpool-proxy
+WEB_PORT=8080
+ZPOOL_API_BASE_URL=https://www.zpool.ca/api
+ZPOOL_WALLET_ADDRESS=ใส่กระเป๋าของคุณ
+DASHBOARD_USERNAME=admin
+DASHBOARD_PASSWORD=strong-password
+```
+
+รันแอป:
+
+```bash
+go run .
+```
+
+เปิดหน้า dashboard:
+
+```text
+http://localhost:8080
+```
+
+API ที่ใช้งานได้ในโหมดนี้:
+
+- `GET /api/zpool/status`
+- `GET /api/zpool/currencies`
+- `GET /api/zpool/wallet` (ใช้ `ZPOOL_WALLET_ADDRESS` หรือส่ง `?address=...`)
 
 ## Running Locally
 
