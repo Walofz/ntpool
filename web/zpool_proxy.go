@@ -34,9 +34,7 @@ func NewZpoolProxyServer(cfg *config.Config) *ZpoolProxyServer {
 func (s *ZpoolProxyServer) Start() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./public/zpool")))
-	mux.HandleFunc("/api/zpool/status", s.handleStatus)
-	mux.HandleFunc("/api/zpool/currencies", s.handleCurrencies)
-	mux.HandleFunc("/api/zpool/wallet", s.handleWallet)
+	mux.HandleFunc("/api/zpool/walletex", s.handleWalletEx)
 
 	handler := lanOnly(s.localAuth(mux))
 	go s.startPayoutMonitor()
@@ -117,15 +115,7 @@ func (s *ZpoolProxyServer) matchesDashboardAuth(username, password string) bool 
 	return usernameMatch && passwordMatch
 }
 
-func (s *ZpoolProxyServer) handleStatus(rw http.ResponseWriter, r *http.Request) {
-	s.proxyJSON(rw, r, "/status", nil)
-}
-
-func (s *ZpoolProxyServer) handleCurrencies(rw http.ResponseWriter, r *http.Request) {
-	s.proxyJSON(rw, r, "/currencies", nil)
-}
-
-func (s *ZpoolProxyServer) handleWallet(rw http.ResponseWriter, r *http.Request) {
+func (s *ZpoolProxyServer) handleWalletEx(rw http.ResponseWriter, r *http.Request) {
 	address := strings.TrimSpace(r.URL.Query().Get("address"))
 	if address == "" {
 		address = strings.TrimSpace(s.cfg.ZpoolWalletAddress)
@@ -136,7 +126,7 @@ func (s *ZpoolProxyServer) handleWallet(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.proxyJSON(rw, r, "/wallet", map[string]string{
+	s.proxyJSON(rw, r, "/walletEX", map[string]string{
 		"address": address,
 	})
 }
@@ -174,7 +164,7 @@ func (s *ZpoolProxyServer) proxyJSON(rw http.ResponseWriter, r *http.Request, en
 }
 
 func (s *ZpoolProxyServer) fetchWalletTotalPaid(address string) (float64, error) {
-	upstreamURL, err := s.buildUpstreamURL("/wallet", map[string]string{
+	upstreamURL, err := s.buildUpstreamURL("/walletEX", map[string]string{
 		"address": address,
 	})
 	if err != nil {
