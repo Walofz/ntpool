@@ -99,6 +99,8 @@ cp .env.example .env
 | `ZPOOL_API_USERNAME` | username สำหรับ upstream Basic Auth ของ Zpool API (optional) | `""` |
 | `ZPOOL_API_PASSWORD` | password สำหรับ upstream Basic Auth ของ Zpool API (optional) | `""` |
 | `ZPOOL_WALLET_ADDRESS` | wallet address เริ่มต้นสำหรับ `/api/zpool/wallet` (ใช้ในโหมด `zpool-proxy`) | `""` |
+| `ZPOOL_NOTIFY_PAYOUT` | เปิด/ปิดการแจ้งเตือน `ntfy` เมื่อ `totalpaid` เพิ่มขึ้นในโหมด `zpool-proxy` | `true` |
+| `ZPOOL_POLL_SECONDS` | รอบเวลา polling wallet API เพื่อเช็ก payout ใหม่ในโหมด `zpool-proxy` | `60` |
 | `DASHBOARD_USERNAME` | username สำหรับล็อกอินหน้า dashboard บน localhost (optional) | `""` |
 | `DASHBOARD_PASSWORD` | password สำหรับล็อกอินหน้า dashboard บน localhost (optional) | `""` |
 | `APP_MODE` | โหมดการทำงานของแอป (`ntpool` หรือ `zpool-proxy`) | `ntpool` |
@@ -112,6 +114,8 @@ APP_MODE=zpool-proxy
 WEB_PORT=8080
 ZPOOL_API_BASE_URL=https://www.zpool.ca/api
 ZPOOL_WALLET_ADDRESS=ใส่กระเป๋าของคุณ
+ZPOOL_NOTIFY_PAYOUT=true
+ZPOOL_POLL_SECONDS=60
 DASHBOARD_USERNAME=admin
 DASHBOARD_PASSWORD=strong-password
 ```
@@ -133,6 +137,8 @@ API ที่ใช้งานได้ในโหมดนี้:
 - `GET /api/zpool/status`
 - `GET /api/zpool/currencies`
 - `GET /api/zpool/wallet` (ใช้ `ZPOOL_WALLET_ADDRESS` หรือส่ง `?address=...`)
+
+เมื่อเปิด `ZPOOL_NOTIFY_PAYOUT=true` ระบบจะ poll `/wallet` ตามรอบ `ZPOOL_POLL_SECONDS` และส่ง `ntfy` เมื่อ `totalpaid` เพิ่มขึ้น (baseline รอบแรกจะไม่แจ้ง)
 
 ## Running Locally
 
