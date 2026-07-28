@@ -20,7 +20,7 @@
         <h1>WalletEX Dashboard</h1>
         <p class="subtitle">Monitor wallet stats and proxy response in real time.</p>
       </div>
-      <div class="hero-chip">Stratum Forwarding Active</div>
+      <div id="hero-chip" class="hero-chip">Miners Connected: 0</div>
     </header>
 
     <section class="card control-card">
@@ -53,6 +53,13 @@
     <section class="card json-card">
       <h2>Raw WalletEX JSON</h2>
       <pre id="json-output">No data loaded.</pre>
+    </section>
+
+    <section class="card miners-card">
+      <h2>Connected Miners</h2>
+      <div id="miners-list" class="miners-list">
+        <p class="miners-empty">No miners connected.</p>
+      </div>
     </section>
   </main>
   <script src="app.js"></script>

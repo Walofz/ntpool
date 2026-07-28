@@ -196,6 +196,7 @@ strong {
 
 .json-card {
   padding: 14px;
+  margin-bottom: 14px;
 }
 
 h2 {
@@ -219,6 +220,58 @@ pre {
   font-size: 13px;
 }
 
+.miners-card {
+  padding: 14px;
+}
+
+.miners-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.miners-empty {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.miner-row {
+  border: 1px solid rgba(131, 172, 214, 0.26);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(8, 13, 21, 0.55);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.miner-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.miner-main strong {
+  font-size: 15px;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.miner-main span {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.miner-meta {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  gap: 2px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
 @media (max-width: 820px) {
   .hero {
     flex-direction: column;
@@ -230,5 +283,14 @@ pre {
 
   .stats {
     grid-template-columns: 1fr;
+  }
+
+  .miner-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .miner-meta {
+    text-align: left;
   }
 }

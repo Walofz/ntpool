@@ -18,14 +18,16 @@ import (
 
 type ZpoolProxyServer struct {
 	cfg           *config.Config
+	stratumProxy  *ZpoolStratumProxy
 	client        *http.Client
 	lastTotalPaid float64
 	haveTotalPaid bool
 }
 
-func NewZpoolProxyServer(cfg *config.Config) *ZpoolProxyServer {
+func NewZpoolProxyServer(cfg *config.Config, stratumProxy *ZpoolStratumProxy) *ZpoolProxyServer {
 	return &ZpoolProxyServer{
-		cfg: cfg,
+		cfg:          cfg,
+		stratumProxy: stratumProxy,
 		client: &http.Client{
 			Timeout: 15 * time.Second,
 		},
@@ -36,6 +38,7 @@ func (s *ZpoolProxyServer) Start() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./public")))
 	mux.HandleFunc("/api/zpool/walletex", s.handleWalletEx)
+	mux.HandleFunc("/api/zpool/miners", s.handleMiners)
 
 	handler := lanOnly(s.localAuth(mux))
 	go s.startPayoutMonitor()
@@ -43,6 +46,23 @@ func (s *ZpoolProxyServer) Start() error {
 	addr := fmt.Sprintf(":%d", s.cfg.WebPort)
 	log.Printf("[Zpool Proxy] Dashboard running on http://localhost:%d", s.cfg.WebPort)
 	return http.ListenAndServe(addr, handler)
+}
+
+func (s *ZpoolProxyServer) handleMiners(rw http.ResponseWriter, _ *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	if s.stratumProxy == nil {
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+			"connectedMiners": 0,
+			"miners":          []MinerConnection{},
+		})
+		return
+	}
+
+	miners := s.stratumProxy.SnapshotMiners()
+	_ = json.NewEncoder(rw).Encode(map[string]interface{}{
+		"connectedMiners": len(miners),
+		"miners":          miners,
+	})
 }
 
 func isLANClient(remoteAddr string) bool {
