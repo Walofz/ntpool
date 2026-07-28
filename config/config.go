@@ -42,6 +42,7 @@ type Config struct {
 	ZpoolPollSeconds     int
 	ZpoolStratumHost     string
 	ZpoolStratumPort     int
+	ZpoolStratumUsername string
 	ZpoolStratumPassword string
 }
 
@@ -117,6 +118,7 @@ func LoadConfig() *Config {
 		ZpoolPollSeconds:     getEnvInt("ZPOOL_POLL_SECONDS", 60),
 		ZpoolStratumHost:     getEnv("ZPOOL_STRATUM_HOST", "sha256.mine.zpool.ca"),
 		ZpoolStratumPort:     getEnvInt("ZPOOL_STRATUM_PORT", 3256),
+		ZpoolStratumUsername: getEnv("ZPOOL_STRATUM_USERNAME", ""),
 		ZpoolStratumPassword: getEnv("ZPOOL_STRATUM_PASSWORD", "c=BTC"),
 	}
 }
