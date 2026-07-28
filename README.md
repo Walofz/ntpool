@@ -46,16 +46,17 @@ ntpool/
 └── README.md
 ```
 
-## Requirements
+## What this project does
 
-- Go 1.22+
-- Bitcoin-compatible SHA-256 node with RPC enabled
-- ZMQ `rawblock` publisher enabled if you want instant new-block updates
-- Docker / Docker Compose optional
+- Accepts miner connections on local stratum port.
+- Forwards shares to zpool upstream stratum.
+- Optionally rewrites `mining.authorize` username/password before forwarding.
+- Exposes `/api/zpool/walletex` for wallet stats and serves a lightweight dashboard UI.
+- Can send `ntfy` notification when wallet `totalpaid` increases.
 
 ## Configuration
 
-คัดลอก `.env.example` เป็น `.env` แล้วแก้ค่าตาม environment ของคุณ
+Copy `.env.example` to `.env` and update values:
 
 ตัวอย่างบน Linux/macOS:
 
@@ -101,14 +102,12 @@ cp .env.example .env
 go run .
 ```
 
-หรือ build binary ก่อน:
+or build:
 
 ```bash
-go build -o ntpool .
-./ntpool
+go build -o zpool-proxy .
+./zpool-proxy
 ```
-
-บน Windows binary ที่ build จะเป็น `ntpool.exe`
 
 ## Docker
 

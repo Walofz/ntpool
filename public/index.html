@@ -3,117 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ntpool - Node Type SHA-256 Solo Mining Pool</title>
+  <title>zpool proxy dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="background-glow"></div>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
 
-  <header class="navbar">
-    <div class="logo-container">
-      <div class="logo-icon">⚡</div>
-      <div class="logo-text">
-        <span class="brand">NT</span> POOL
-        <span class="badge">Node Type Pool • CKPool Engine</span>
+  <main class="container">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">ZPOOL PROXY</p>
+        <h1>WalletEX Dashboard</h1>
+        <p class="subtitle">Monitor wallet stats and proxy response in real time.</p>
       </div>
-    </div>
-    <div class="stratum-info">
-      <span class="pulse-dot"></span>
-      Stratum: <code id="stratum-url">stratum+tcp://localhost:3333</code>
-    </div>
-  </header>
+      <div id="hero-chip" class="hero-chip">Miners Connected: 0</div>
+    </header>
 
-  <main class="dashboard-container">
-    <!-- Hero Stats Grid -->
-    <section class="stats-grid">
-      <div class="card stat-card">
-        <div class="card-icon">🚀</div>
-        <div class="stat-meta">
-          <span class="label">Pool Hashrate (1m)</span>
-          <h2 id="pool-hashrate" class="stat-value">0.00 TH/s</h2>
-        </div>
+    <section class="card control-card">
+      <div class="field">
+        <label for="address-input">Wallet address</label>
+        <input id="address-input" type="text" placeholder="Leave empty to use ZPOOL_WALLET_ADDRESS">
       </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">⛏️</div>
-        <div class="stat-meta">
-          <span class="label">Active Workers</span>
-          <h2 id="connected-workers" class="stat-value">0</h2>
-        </div>
+      <div class="buttons">
+        <button id="refresh-btn" type="button">Refresh</button>
+        <button id="auto-btn" type="button">Auto: OFF</button>
       </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">📦</div>
-        <div class="stat-meta">
-          <span class="label">Block Height</span>
-          <h2 id="block-height" class="stat-value">0</h2>
-        </div>
-      </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">🌐</div>
-        <div class="stat-meta">
-          <span class="label">Network Difficulty</span>
-          <h2 id="network-diff" class="stat-value">0.00</h2>
-        </div>
-      </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">🏆</div>
-        <div class="stat-meta">
-          <span class="label">Blocks Mined</span>
-          <h2 id="blocks-count" class="stat-value">0</h2>
-        </div>
-      </div>
+      <p id="status-text" class="status">Ready</p>
     </section>
 
-    <div class="content-split">
-      <!-- Active Connected Workers Table -->
-      <section class="table-section card">
-        <div class="table-header">
-          <h3>⚡ Connected ASIC Workers</h3>
-          <span id="worker-badge" class="badge">0 Online</span>
-        </div>
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th>Miner Address</th>
-                <th>Worker</th>
-                <th>Diff</th>
-                <th>Hashrate (1m)</th>
-                <th>Best Share</th>
-                <th>AsicBoost</th>
-              </tr>
-            </thead>
-            <tbody id="workers-tbody">
-              <tr>
-                <td colspan="6" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+    <section class="stats">
+      <article class="card stat-card">
+        <span class="stat-label">Total paid</span>
+        <strong id="total-paid">-</strong>
+      </article>
+      <article class="card stat-card">
+        <span class="stat-label">Balance</span>
+        <strong id="balance">-</strong>
+      </article>
+      <article class="card stat-card">
+        <span class="stat-label">Unpaid</span>
+        <strong id="unpaid">-</strong>
+      </article>
+    </section>
 
-      <!-- Blocks Mined Ledger -->
-      <section class="blocks-section card">
-        <div class="table-header">
-          <h3>💎 Solo Blocks Found (Latest 3)</h3>
-        </div>
-        <div id="blocks-list" class="blocks-list">
-          <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
-        </div>
-      </section>
-    </div>
+    <section class="card json-card">
+      <h2>Raw WalletEX JSON</h2>
+      <pre id="json-output">No data loaded.</pre>
+    </section>
+
+    <section class="card miners-card">
+      <h2>Connected Miners</h2>
+      <div id="miners-list" class="miners-list">
+        <p class="miners-empty">No miners connected.</p>
+      </div>
+    </section>
   </main>
-
-  <footer>
-    <p>Powered by <strong>ntpool SHA-256 Solo Engine</strong> (Node Type Pool) • Modelled after CKPool architecture • Direct Coinbase Payout</p>
-  </footer>
-
   <script src="app.js"></script>
 </body>
 </html>

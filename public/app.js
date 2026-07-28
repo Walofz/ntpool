@@ -1,92 +1,137 @@
-const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+const addressInput = document.getElementById('address-input');
+const refreshBtn = document.getElementById('refresh-btn');
+const autoBtn = document.getElementById('auto-btn');
+const statusText = document.getElementById('status-text');
+const totalPaidEl = document.getElementById('total-paid');
+const balanceEl = document.getElementById('balance');
+const unpaidEl = document.getElementById('unpaid');
+const jsonOutput = document.getElementById('json-output');
+const heroChipEl = document.getElementById('hero-chip');
+const minersListEl = document.getElementById('miners-list');
 
-let socket = null;
+let autoTimer = null;
 
-function formatHashrate(hashrate) {
-  if (hashrate >= 1e12) return (hashrate / 1e12).toFixed(2) + ' TH/s';
-  if (hashrate >= 1e9) return (hashrate / 1e9).toFixed(2) + ' GH/s';
-  if (hashrate >= 1e6) return (hashrate / 1e6).toFixed(2) + ' MH/s';
-  if (hashrate >= 1e3) return (hashrate / 1e3).toFixed(2) + ' KH/s';
-  return hashrate.toFixed(2) + ' H/s';
+function getRootPayload(payload) {
+  if (payload && typeof payload === 'object' && payload.getuserbalance && typeof payload.getuserbalance === 'object') {
+    return payload.getuserbalance;
+  }
+  return payload || {};
 }
 
-function formatDifficulty(diff) {
-  if (!diff || diff <= 0) return '0.00';
-  if (diff >= 1e12) return (diff / 1e12).toFixed(2) + ' T';
-  if (diff >= 1e9) return (diff / 1e9).toFixed(2) + ' G';
-  if (diff >= 1e6) return (diff / 1e6).toFixed(2) + ' M';
-  if (diff >= 1e3) return (diff / 1e3).toFixed(2) + ' K';
-  return diff.toFixed(2);
+function numericValue(root, keys) {
+  for (const key of keys) {
+    const value = root[key];
+    if (value === undefined || value === null) continue;
+    const num = Number(value);
+    if (Number.isFinite(num)) return num;
+  }
+  return null;
 }
 
-function truncateAddress(addr) {
-  if (!addr || addr.length < 12) return addr;
-  return addr.substring(0, 8) + '...' + addr.substring(addr.length - 6);
+function renderStats(payload) {
+  const root = getRootPayload(payload);
+  const totalPaid = numericValue(root, ['totalpaid', 'paid', 'total']);
+  const balance = numericValue(root, ['balance', 'confirmed']);
+  const unpaid = numericValue(root, ['unpaid', 'immature']);
+
+  totalPaidEl.textContent = totalPaid === null ? '-' : totalPaid.toFixed(8);
+  balanceEl.textContent = balance === null ? '-' : balance.toFixed(8);
+  unpaidEl.textContent = unpaid === null ? '-' : unpaid.toFixed(8);
 }
 
-function initWebSocket() {
-  socket = new WebSocket(wsUrl);
-
-  socket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      updateDashboard(data);
-    } catch (e) {
-      console.error('Failed to parse WS data', e);
-    }
-  };
-
-  socket.onclose = () => {
-    setTimeout(initWebSocket, 3000);
-  };
-}
-
-function updateDashboard(data) {
-  document.getElementById('pool-hashrate').innerText = formatHashrate(data.poolHashrate1m || 0);
-  document.getElementById('connected-workers').innerText = data.connectedWorkers || 0;
-  document.getElementById('block-height').innerText = data.blockHeight ? `#${data.blockHeight}` : '0';
-  document.getElementById('network-diff').innerText = formatDifficulty(data.networkDifficulty || 0);
-  document.getElementById('blocks-count').innerText = data.blocksFound ? data.blocksFound.length : 0;
-  document.getElementById('worker-badge').innerText = `${data.connectedWorkers || 0} Online`;
-
-  // Render workers
-  const tbody = document.getElementById('workers-tbody');
-  if (!data.workers || data.workers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td></tr>`;
-  } else {
-    tbody.innerHTML = data.workers.map(w => `
-      <tr>
-        <td class="mono" title="${w.address}">${truncateAddress(w.address)}</td>
-        <td><strong>${w.workerName}</strong></td>
-        <td class="mono">${w.difficulty}</td>
-        <td class="mono">${formatHashrate(w.hashrate1m)}</td>
-        <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
-        <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
-      </tr>
-    `).join('');
+function relativeConnectedAt(iso) {
+  const connectedAt = new Date(iso).getTime();
+  if (!Number.isFinite(connectedAt)) {
+    return '-';
   }
 
-  // Render Blocks Mined
-  const blocksList = document.getElementById('blocks-list');
-  const coinSymbol = data.coinSymbol || 'BTC';
-  const latestBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 3) : [];
+  const diffSec = Math.max(0, Math.floor((Date.now() - connectedAt) / 1000));
+  if (diffSec < 60) return `${diffSec}s`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
+  return `${Math.floor(diffSec / 3600)}h`;
+}
 
-  if (latestBlocks.length === 0) {
-    blocksList.innerHTML = `<div class="empty-state">No solo blocks found yet. Keep hashing!</div>`;
-  } else {
-    blocksList.innerHTML = latestBlocks.map(b => `
-      <div class="block-card">
-        <div class="block-title">
-          <span>Block #${b.height}</span>
-          <span>+${b.reward} ${b.symbol || coinSymbol}</span>
-        </div>
-        <div class="block-hash">Hash: ${b.hash}</div>
-        <div style="font-size:0.75rem; color:#8a99ad; margin-top:0.3rem;">Mined by: ${truncateAddress(b.miner)}.${b.worker}</div>
+function renderMiners(payload) {
+  const connected = Number(payload.connectedMiners) || 0;
+  heroChipEl.textContent = `Miners Connected: ${connected}`;
+
+  const miners = Array.isArray(payload.miners) ? payload.miners : [];
+  if (miners.length === 0) {
+    minersListEl.innerHTML = '<p class="miners-empty">No miners connected.</p>';
+    return;
+  }
+
+  minersListEl.innerHTML = miners.map((miner) => `
+    <article class="miner-row">
+      <div class="miner-main">
+        <strong>${miner.workerName || '-'}</strong>
+        <span>${miner.username || '-'}</span>
       </div>
-    `).join('');
+      <div class="miner-meta">
+        <span>${miner.remoteAddr || '-'}</span>
+        <span>online ${relativeConnectedAt(miner.connectedAt)}</span>
+      </div>
+    </article>
+  `).join('');
+}
+
+async function loadMiners() {
+  const response = await fetch('/api/zpool/miners', { cache: 'no-store' });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`${response.status} ${body}`);
+  }
+  const payload = JSON.parse(body);
+  renderMiners(payload);
+}
+
+async function loadWalletEx() {
+  const address = addressInput.value.trim();
+  const query = address ? `?address=${encodeURIComponent(address)}` : '';
+  const url = `/api/zpool/walletex${query}`;
+
+  statusText.textContent = 'Loading...';
+  statusText.className = 'status';
+
+  try {
+    const response = await fetch(url, { cache: 'no-store' });
+    const body = await response.text();
+
+    if (!response.ok) {
+      throw new Error(`${response.status} ${body}`);
+    }
+
+    const json = JSON.parse(body);
+    renderStats(json);
+    jsonOutput.textContent = JSON.stringify(json, null, 2);
+    await loadMiners();
+    statusText.textContent = `Updated at ${new Date().toLocaleTimeString()}`;
+    statusText.className = 'status ok';
+  } catch (error) {
+    statusText.textContent = `Error: ${error.message}`;
+    statusText.className = 'status err';
   }
 }
 
-// Initialize
-initWebSocket();
+function toggleAutoRefresh() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    autoBtn.textContent = 'Auto: OFF';
+    autoBtn.classList.remove('active');
+    return;
+  }
+
+  autoTimer = setInterval(loadWalletEx, 30000);
+  autoBtn.textContent = 'Auto: ON';
+  autoBtn.classList.add('active');
+}
+
+refreshBtn.addEventListener('click', loadWalletEx);
+autoBtn.addEventListener('click', toggleAutoRefresh);
+addressInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    loadWalletEx();
+  }
+});
+loadWalletEx();

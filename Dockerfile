@@ -9,17 +9,17 @@ COPY . .
 RUN go mod tidy && go mod verify
 
 # Build static executable binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o ntpool main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o zpool-proxy main.go
 
 # Production Stage
 FROM alpine:latest AS runner
 WORKDIR /app
 
 # Copy binary and web static assets
-COPY --from=builder /app/ntpool ./ntpool
+COPY --from=builder /app/zpool-proxy ./zpool-proxy
 COPY public ./public
 
 # Stratum TCP (3333) & Web Dashboard (8080)
 EXPOSE 3333 8080
 
-CMD ["./ntpool"]
+CMD ["./zpool-proxy"]
