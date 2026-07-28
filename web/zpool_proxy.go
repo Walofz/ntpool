@@ -2,12 +2,14 @@ package web
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,8 +17,10 @@ import (
 )
 
 type ZpoolProxyServer struct {
-	cfg    *config.Config
-	client *http.Client
+	cfg           *config.Config
+	client        *http.Client
+	lastTotalPaid float64
+	haveTotalPaid bool
 }
 
 func NewZpoolProxyServer(cfg *config.Config) *ZpoolProxyServer {
@@ -36,10 +40,59 @@ func (s *ZpoolProxyServer) Start() error {
 	mux.HandleFunc("/api/zpool/wallet", s.handleWallet)
 
 	handler := loopbackOnly(s.localAuth(mux))
+	go s.startPayoutMonitor()
 
 	addr := fmt.Sprintf(":%d", s.cfg.WebPort)
 	log.Printf("[Zpool Proxy] Dashboard running on http://localhost:%d", s.cfg.WebPort)
 	return http.ListenAndServe(addr, handler)
+}
+
+func (s *ZpoolProxyServer) startPayoutMonitor() {
+	if !s.cfg.ZpoolNotifyPayout {
+		return
+	}
+
+	address := strings.TrimSpace(s.cfg.ZpoolWalletAddress)
+	if address == "" {
+		log.Printf("[zpool notify] skip payout monitor: ZPOOL_WALLET_ADDRESS is empty")
+		return
+	}
+
+	pollSeconds := s.cfg.ZpoolPollSeconds
+	if pollSeconds < 10 {
+		pollSeconds = 10
+	}
+
+	check := func() {
+		totalPaid, err := s.fetchWalletTotalPaid(address)
+		if err != nil {
+			log.Printf("[zpool notify] wallet poll failed: %v", err)
+			return
+		}
+
+		if !s.haveTotalPaid {
+			s.lastTotalPaid = totalPaid
+			s.haveTotalPaid = true
+			log.Printf("[zpool notify] baseline totalpaid=%.8f", totalPaid)
+			return
+		}
+
+		if totalPaid <= s.lastTotalPaid {
+			return
+		}
+
+		paidDelta := totalPaid - s.lastTotalPaid
+		s.lastTotalPaid = totalPaid
+		s.notifyPayout(address, paidDelta)
+	}
+
+	check()
+	ticker := time.NewTicker(time.Duration(pollSeconds) * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		check()
+	}
 }
 
 func (s *ZpoolProxyServer) localAuth(next http.Handler) http.Handler {
@@ -144,6 +197,124 @@ func (s *ZpoolProxyServer) proxyJSON(rw http.ResponseWriter, r *http.Request, en
 	if _, copyErr := io.Copy(rw, resp.Body); copyErr != nil {
 		log.Printf("[Zpool Proxy] failed to stream upstream response: %v", copyErr)
 	}
+}
+
+func (s *ZpoolProxyServer) fetchWalletTotalPaid(address string) (float64, error) {
+	upstreamURL, err := s.buildUpstreamURL("/wallet", map[string]string{
+		"address": address,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, upstreamURL, nil)
+	if err != nil {
+		return 0, err
+	}
+	if s.cfg.ZpoolAPIUsername != "" || s.cfg.ZpoolAPIPassword != "" {
+		req.SetBasicAuth(s.cfg.ZpoolAPIUsername, s.cfg.ZpoolAPIPassword)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("wallet upstream %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var payload map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return 0, err
+	}
+
+	root := payload
+	if nestedRaw, ok := payload["getuserbalance"]; ok {
+		nested, ok := nestedRaw.(map[string]interface{})
+		if !ok {
+			return 0, fmt.Errorf("unexpected getuserbalance shape")
+		}
+		root = nested
+	}
+
+	totalPaid, ok := getNumericField(root, "totalpaid")
+	if !ok {
+		return 0, fmt.Errorf("totalpaid not found in wallet response")
+	}
+
+	return totalPaid, nil
+}
+
+func getNumericField(source map[string]interface{}, key string) (float64, bool) {
+	value, ok := source[key]
+	if !ok || value == nil {
+		return 0, false
+	}
+
+	switch typed := value.(type) {
+	case float64:
+		return typed, true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	case json.Number:
+		parsed, err := typed.Float64()
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+func (s *ZpoolProxyServer) notifyPayout(address string, paidDelta float64) {
+	if s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
+		return
+	}
+
+	body := fmt.Sprintf(
+		"ZPOOL PAYOUT DETECTED\nAddress %s\nNew payout %.8f",
+		address,
+		paidDelta,
+	)
+
+	endpoint := strings.TrimRight(s.cfg.NtfyServer, "/") + "/" + strings.TrimLeft(s.cfg.NtfyTopic, "/")
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(body))
+	if err != nil {
+		log.Printf("[zpool notify] failed to create request: %v", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Title", "ZPOOL PAYOUT")
+	req.Header.Set("Priority", "default")
+	req.Header.Set("Tags", "money_with_wings,receipt")
+	if s.cfg.NtfyUser != "" || s.cfg.NtfyPassword != "" {
+		req.SetBasicAuth(s.cfg.NtfyUser, s.cfg.NtfyPassword)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("[zpool notify] failed to send payout notification: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		log.Printf("[zpool notify] notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
+		return
+	}
+
+	log.Printf("[zpool notify] payout notification sent to %s", endpoint)
 }
 
 func (s *ZpoolProxyServer) buildUpstreamURL(endpoint string, query map[string]string) (string, error) {

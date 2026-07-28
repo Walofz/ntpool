@@ -38,6 +38,8 @@ type Config struct {
 	ZpoolWalletAddress  string
 	DashboardUsername   string
 	DashboardPassword   string
+	ZpoolNotifyPayout   bool
+	ZpoolPollSeconds    int
 }
 
 func getEnv(key, defaultVal string) string {
@@ -108,5 +110,7 @@ func LoadConfig() *Config {
 		ZpoolWalletAddress:  getEnv("ZPOOL_WALLET_ADDRESS", ""),
 		DashboardUsername:   getEnv("DASHBOARD_USERNAME", ""),
 		DashboardPassword:   getEnv("DASHBOARD_PASSWORD", ""),
+		ZpoolNotifyPayout:   getEnvBool("ZPOOL_NOTIFY_PAYOUT", true),
+		ZpoolPollSeconds:    getEnvInt("ZPOOL_POLL_SECONDS", 60),
 	}
 }
