@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zpool Proxy Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <div>
+        <h1>Zpool Proxy Dashboard</h1>
+        <p>Data fetched from zpool.ca through localhost proxy</p>
+      </div>
+      <button id="refresh-btn" type="button">Refresh</button>
+    </header>
+
+    <section class="cards">
+      <article class="card">
+        <h2>Status</h2>
+        <div class="metric-grid">
+          <p><span>Hashrate</span><strong id="status-hashrate">-</strong></p>
+          <p><span>Miners</span><strong id="status-miners">-</strong></p>
+          <p><span>Workers</span><strong id="status-workers">-</strong></p>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Wallet</h2>
+        <div class="metric-grid">
+          <p><span>Immature</span><strong id="wallet-immature">-</strong></p>
+          <p><span>Balance</span><strong id="wallet-balance">-</strong></p>
+          <p><span>Paid</span><strong id="wallet-paid">-</strong></p>
+        </div>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>/api/zpool/status</h2>
+      <pre id="status-json">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>/api/zpool/wallet</h2>
+      <pre id="wallet-json">Loading...</pre>
+    </section>
+
+    <section class="card">
+      <h2>/api/zpool/currencies</h2>
+      <pre id="currencies-json">Loading...</pre>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
