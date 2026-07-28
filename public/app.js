@@ -69,13 +69,20 @@ function toggleAutoRefresh() {
     clearInterval(autoTimer);
     autoTimer = null;
     autoBtn.textContent = 'Auto: OFF';
+    autoBtn.classList.remove('active');
     return;
   }
 
   autoTimer = setInterval(loadWalletEx, 30000);
   autoBtn.textContent = 'Auto: ON';
+  autoBtn.classList.add('active');
 }
 
 refreshBtn.addEventListener('click', loadWalletEx);
 autoBtn.addEventListener('click', toggleAutoRefresh);
+addressInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    loadWalletEx();
+  }
+});
 loadWalletEx();

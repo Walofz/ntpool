@@ -4,32 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>zpool proxy dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="container">
-    <h1>zpool proxy dashboard</h1>
-    <p class="subtitle">WalletEX viewer and Stratum proxy status page.</p>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
 
-    <section class="card">
-      <div class="row">
+  <main class="container">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">ZPOOL PROXY</p>
+        <h1>WalletEX Dashboard</h1>
+        <p class="subtitle">Monitor wallet stats and proxy response in real time.</p>
+      </div>
+      <div class="hero-chip">Stratum Forwarding Active</div>
+    </header>
+
+    <section class="card control-card">
+      <div class="field">
         <label for="address-input">Wallet address</label>
         <input id="address-input" type="text" placeholder="Leave empty to use ZPOOL_WALLET_ADDRESS">
       </div>
-      <div class="row buttons">
+      <div class="buttons">
         <button id="refresh-btn" type="button">Refresh</button>
         <button id="auto-btn" type="button">Auto: OFF</button>
       </div>
       <p id="status-text" class="status">Ready</p>
     </section>
 
-    <section class="card stats">
-      <div><span class="label">Total paid</span><strong id="total-paid">-</strong></div>
-      <div><span class="label">Balance</span><strong id="balance">-</strong></div>
-      <div><span class="label">Unpaid</span><strong id="unpaid">-</strong></div>
+    <section class="stats">
+      <article class="card stat-card">
+        <span class="stat-label">Total paid</span>
+        <strong id="total-paid">-</strong>
+      </article>
+      <article class="card stat-card">
+        <span class="stat-label">Balance</span>
+        <strong id="balance">-</strong>
+      </article>
+      <article class="card stat-card">
+        <span class="stat-label">Unpaid</span>
+        <strong id="unpaid">-</strong>
+      </article>
     </section>
 
-    <section class="card">
+    <section class="card json-card">
       <h2>Raw WalletEX JSON</h2>
       <pre id="json-output">No data loaded.</pre>
     </section>
