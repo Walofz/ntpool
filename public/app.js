@@ -202,7 +202,7 @@ function updateDashboard(data) {
       </div>
     `;
   } else {
-    timelineList.innerHTML = [...healthTimeline].reverse().map((entry) => {
+    timelineList.innerHTML = [...healthTimeline].reverse().slice(0, 3).map((entry) => {
       const status = entry.overall || 'degraded';
       const icon = status === 'online' ? '●' : status === 'offline' ? '■' : '◐';
       const time = new Date(entry.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

@@ -711,6 +711,19 @@ td {
   margin-bottom: 0.8rem;
 }
 
+.latest-block-horizontal {
+  margin-bottom: 1rem;
+}
+
+.latest-block-horizontal .blocks-list {
+  display: flex;
+  width: 100%;
+}
+
+.latest-block-horizontal .block-card {
+  width: 100%;
+}
+
 .latest-block-card {
   border-color: rgba(82, 211, 120, 0.38);
   background: linear-gradient(180deg, rgba(82, 211, 120, 0.12), rgba(0, 0, 0, 0.12));

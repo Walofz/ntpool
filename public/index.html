@@ -93,6 +93,43 @@
       </div>
     </section>
 
+    <section class="blocks-section card latest-block-horizontal">
+      <div class="table-header">
+        <h3>💎 Latest Solo Block</h3>
+      </div>
+      <div id="blocks-list" class="blocks-list horizontal-block-card">
+        <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
+      </div>
+    </section>
+
+    <section class="analytics-section card">
+      <div class="table-header">
+        <h3>📊 Worker Performance Summary</h3>
+      </div>
+      <div class="analytics-grid">
+        <div class="mini-stat">
+          <span class="label">Top Worker</span>
+          <strong id="top-worker">—</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Best Share</span>
+          <strong id="best-share-worker">—</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Active / Disabled / Banned</span>
+          <strong id="status-summary">0 / 0 / 0</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Reject Rate</span>
+          <strong id="reject-rate">0.0%</strong>
+        </div>
+      </div>
+      <div class="analytics-list-wrap">
+        <h4>Top workers by 1m hashrate</h4>
+        <div id="worker-analytics-list" class="analytics-list"></div>
+      </div>
+    </section>
+
     <section class="card dashboard-tab-panel">
       <div class="tab-header">
         <button class="tab-button active" data-tab="health">📈 Health Timeline</button>
@@ -138,34 +175,6 @@
       </div>
     </section>
 
-    <section class="analytics-section card">
-      <div class="table-header">
-        <h3>📊 Worker Performance Summary</h3>
-      </div>
-      <div class="analytics-grid">
-        <div class="mini-stat">
-          <span class="label">Top Worker</span>
-          <strong id="top-worker">—</strong>
-        </div>
-        <div class="mini-stat">
-          <span class="label">Best Share</span>
-          <strong id="best-share-worker">—</strong>
-        </div>
-        <div class="mini-stat">
-          <span class="label">Active / Disabled / Banned</span>
-          <strong id="status-summary">0 / 0 / 0</strong>
-        </div>
-        <div class="mini-stat">
-          <span class="label">Reject Rate</span>
-          <strong id="reject-rate">0.0%</strong>
-        </div>
-      </div>
-      <div class="analytics-list-wrap">
-        <h4>Top workers by 1m hashrate</h4>
-        <div id="worker-analytics-list" class="analytics-list"></div>
-      </div>
-    </section>
-
     <div class="content-split">
       <!-- Active Connected Workers Table -->
       <section class="table-section card">
@@ -198,15 +207,6 @@
         </div>
       </section>
 
-      <!-- Latest Solo Block -->
-      <section class="blocks-section card">
-        <div class="table-header">
-          <h3>💎 Latest Solo Block</h3>
-        </div>
-        <div id="blocks-list" class="blocks-list">
-          <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
-        </div>
-      </section>
     </div>
   </main>
 
