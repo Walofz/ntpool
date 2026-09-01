@@ -387,7 +387,7 @@ function updateDashboard(data) {
   }
 
   const blockHistoryList = document.getElementById('block-history-list');
-  const allBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 100) : [];
+  const allBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 30) : [];
 
   if (!allBlocks.length) {
     blockHistoryList.innerHTML = `<div class="activity-item info"><strong>No discovered blocks yet</strong><span>Block history will appear here once a valid block is found.</span></div>`;
