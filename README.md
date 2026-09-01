@@ -1,4 +1,4 @@
-# ntpool
+﻿# ntpool
 
 High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt AsicBoost support, a LAN-only realtime web dashboard, and optional `ntfy` block-found notifications.
 
@@ -6,7 +6,7 @@ High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt 
 
 `ntpool` เป็น solo mining pool แบบพึ่งพา node ของตัวเอง โดยเน้น path การแจกงานและตรวจ share ที่ตรงไปตรงมา ใช้ Bitcoin RPC สำหรับ block template, ใช้ ZMQ สำหรับรับ block notification แบบทันที, และมี web dashboard สำหรับดู worker, hashrate, difficulty, best share, และ blocks found
 
-ฟีเจอร์หลักของโปรเจกต์ปัจจุบัน:
+ฟีเจอร์หลัก:
 
 - Stratum V1 server สำหรับเครื่องขุด SHA-256
 - รองรับ Overt AsicBoost / version rolling
@@ -57,13 +57,9 @@ ntpool/
 
 คัดลอก `.env.example` เป็น `.env` แล้วแก้ค่าตาม environment ของคุณ
 
-ตัวอย่างบน Linux/macOS:
-
 ```bash
 cp .env.example .env
 ```
-
-ตัวแปรที่รองรับในโปรเจกต์ปัจจุบัน:
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
@@ -95,8 +91,6 @@ cp .env.example .env
 
 ## Running Locally
 
-ติดตั้ง dependency และรันตรงจาก source:
-
 ```bash
 go run .
 ```
@@ -112,21 +106,9 @@ go build -o ntpool .
 
 ## Docker
 
-รันด้วย Docker Compose:
-
 ```bash
 docker compose up -d --build
-```
-
-ดู logs:
-
-```bash
 docker compose logs -f ntpool
-```
-
-หยุด container:
-
-```bash
 docker compose down
 ```
 
@@ -142,14 +124,11 @@ docker compose down
 
 ## Connecting Miners
 
-ตั้งค่า miner ดังนี้:
-
 - URL: `stratum+tcp://<SERVER_IP>:3333`
 - Username: `<WALLET_ADDRESS>.<WORKER_NAME>` หรือ `<ANY_PREFIX>.<WORKER_NAME>`
 - Password: `x`
 
-หมายเหตุ: โปรเจกต์นี้จะใช้ `WALLET_ADDRESS` จาก config เป็นปลายทาง payout เสมอ
-ส่วน prefix หน้า `.` จะถูกละทิ้ง และใช้เฉพาะชื่อหลังจุดเป็น worker name ที่แสดงใน dashboard เท่านั้น
+หมายเหตุ: โปรเจกต์นี้จะใช้ `WALLET_ADDRESS` จาก config เป็นปลายทาง payout เสมอ ส่วน prefix หน้า `.` จะถูกละทิ้ง และใช้เฉพาะชื่อหลังจุดเป็น worker name ที่แสดงใน dashboard เท่านั้น
 
 ตัวอย่าง:
 
@@ -158,8 +137,6 @@ anyprefix.s21-01
 ```
 
 ## Validation
-
-คำสั่งที่ใช้เช็กโปรเจกต์หลังแก้โค้ด:
 
 ```bash
 go build ./...
