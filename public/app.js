@@ -34,6 +34,21 @@ function formatUptime(seconds) {
   return `${remMins}m`;
 }
 
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return 'Just now';
+  const time = new Date(timestamp).getTime();
+  if (Number.isNaN(time)) return 'Just now';
+  const diffSeconds = Math.max(0, Math.floor((Date.now() - time) / 1000));
+
+  if (diffSeconds < 60) return `${diffSeconds}s ago`;
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
 function statusClass(status) {
   switch (status) {
     case 'banned': return 'status-tag status-banned';
@@ -61,6 +76,35 @@ async function handleWorkerAction(sessionId, action) {
     const stats = await statsRes.json();
     updateDashboard(stats);
   }
+  closeWorkerActionModal();
+}
+
+function setActiveTab(tabName) {
+  document.querySelectorAll('.tab-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.tab-content').forEach((panel) => {
+    panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+  });
+}
+
+function openWorkerActionModal(worker) {
+  const modal = document.getElementById('worker-action-modal');
+  const summary = document.getElementById('worker-modal-summary');
+  if (!modal || !summary || !worker) return;
+
+  summary.textContent = `${worker.workerName || 'Worker'} • ${worker.address || 'Unknown miner'} • ${worker.status || 'active'}`;
+  modal.dataset.sessionId = worker.sessionId;
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeWorkerActionModal() {
+  const modal = document.getElementById('worker-action-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+  delete modal.dataset.sessionId;
 }
 
 function initWebSocket() {
@@ -216,12 +260,12 @@ function updateDashboard(data) {
   // Render workers
   const tbody = document.getElementById('workers-tbody');
   if (!data.workers || data.workers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td></tr>`;
   } else {
     tbody.innerHTML = data.workers.map(w => `
-      <tr>
-        <td class="mono" title="${w.address}">${truncateAddress(w.address)}</td>
-        <td><strong>${w.workerName}</strong></td>
+      <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
+        <td class="mono worker-select" title="${w.address}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
+        <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName}</strong></td>
         <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
         <td class="mono">${w.difficulty}</td>
         <td class="mono">${formatHashrate(w.hashrate1m)}</td>
@@ -230,42 +274,132 @@ function updateDashboard(data) {
         <td class="mono">${formatUptime(w.uptimeSeconds)}</td>
         <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
         <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
-        <td>
-          <div class="admin-actions">
-            ${w.status === 'active' ? '<button class="mini-btn danger" data-action="disable" data-session-id="' + w.sessionId + '">Disable</button>' : '<button class="mini-btn" data-action="resume" data-session-id="' + w.sessionId + '">Resume</button>'}
-            <button class="mini-btn warn" data-action="ban" data-session-id="' + w.sessionId + '">Ban</button>
-          </div>
-        </td>
       </tr>
     `).join('');
 
-    document.querySelectorAll('[data-action]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        handleWorkerAction(btn.dataset.sessionId, btn.dataset.action);
+    tbody.querySelectorAll('.worker-select').forEach((cell) => {
+      cell.addEventListener('click', (event) => {
+        const sessionId = event.currentTarget.dataset.sessionId;
+        const worker = (data.workers || []).find((item) => item.sessionId === sessionId);
+        if (worker) openWorkerActionModal(worker);
       });
     });
   }
 
-  // Render Blocks Mined
+  // Render latest solo block and recent history
   const blocksList = document.getElementById('blocks-list');
   const coinSymbol = data.coinSymbol || 'BTC';
-  const latestBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 3) : [];
+  const recentBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 5) : [];
+  const latestBlock = recentBlocks[0];
 
-  if (latestBlocks.length === 0) {
+  if (!latestBlock) {
     blocksList.innerHTML = `<div class="empty-state">No solo blocks found yet. Keep hashing!</div>`;
   } else {
-    blocksList.innerHTML = latestBlocks.map(b => `
-      <div class="block-card">
-        <div class="block-title">
-          <span>Block #${b.height}</span>
-          <span>+${b.reward} ${b.symbol || coinSymbol}</span>
+    const blockTimeAgo = formatTimeAgo(latestBlock.timestamp);
+    const minerName = latestBlock.worker || 'Unknown worker';
+    const minerAddress = latestBlock.miner ? truncateAddress(latestBlock.miner) : 'Unknown miner';
+    const recentHistory = recentBlocks.slice(1);
+
+    const historyMarkup = recentHistory.length
+      ? `
+        <div class="recent-blocks-panel">
+          <div class="recent-blocks-header">Recent blocks history</div>
+          <div class="recent-block-list">
+            ${recentHistory.map(block => `
+              <div class="recent-block-item">
+                <span>#${block.height}</span>
+                <span>${formatTimeAgo(block.timestamp)}</span>
+              </div>
+            `).join('')}
+          </div>
         </div>
-        <div class="block-hash">Hash: ${b.hash}</div>
-        <div style="font-size:0.75rem; color:#8a99ad; margin-top:0.3rem;">Mined by: ${truncateAddress(b.miner)}.${b.worker}</div>
+      `
+      : '';
+
+    blocksList.innerHTML = `
+      <div class="block-card latest-block-card">
+        <div class="block-title">
+          <span>Latest block</span>
+          <span>+${latestBlock.reward} ${latestBlock.symbol || coinSymbol}</span>
+        </div>
+
+        <div class="block-metric">
+          <span class="block-label">Height</span>
+          <strong>#${latestBlock.height}</strong>
+        </div>
+
+        <div class="block-metric">
+          <span class="block-label">Block hash</span>
+          <strong>${latestBlock.hash}</strong>
+        </div>
+
+        <div class="block-meta-grid">
+          <div>
+            <span class="block-label">Found by</span>
+            <strong>${minerAddress} / ${minerName}</strong>
+          </div>
+          <div>
+            <span class="block-label">Passed</span>
+            <strong>${blockTimeAgo}</strong>
+          </div>
+        </div>
       </div>
-    `).join('');
+      ${historyMarkup}
+    `;
+  }
+
+  const blockHistoryList = document.getElementById('block-history-list');
+  const allBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 100) : [];
+
+  if (!allBlocks.length) {
+    blockHistoryList.innerHTML = `<div class="activity-item info"><strong>No discovered blocks yet</strong><span>Block history will appear here once a valid block is found.</span></div>`;
+  } else {
+    blockHistoryList.innerHTML = `
+      <div class="block-history-table-wrap">
+        <table class="block-history-table">
+          <thead>
+            <tr>
+              <th>Height</th>
+              <th>Hash</th>
+              <th>Found By</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allBlocks.map((block) => `
+              <tr>
+                <td class="height">#${block.height}</td>
+                <td class="hash">${block.hash}</td>
+                <td class="miner">${(block.miner ? truncateAddress(block.miner) : 'Unknown')} / ${block.worker || 'worker'}</td>
+                <td class="time">${formatTimeAgo(block.timestamp)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 }
+
+document.querySelectorAll('.tab-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveTab(button.dataset.tab);
+  });
+});
+
+document.querySelectorAll('[data-close-modal="true"]').forEach((button) => {
+  button.addEventListener('click', closeWorkerActionModal);
+});
+
+document.querySelectorAll('[data-worker-action]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const modal = document.getElementById('worker-action-modal');
+    const sessionId = modal ? modal.dataset.sessionId : null;
+    if (sessionId) {
+      handleWorkerAction(sessionId, button.dataset.workerAction);
+    }
+  });
+});
 
 // Initialize
 initWebSocket();

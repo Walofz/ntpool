@@ -93,38 +93,47 @@
       </div>
     </section>
 
-    <section class="health-timeline card">
-      <div class="table-header">
-        <h3>📈 Health Timeline</h3>
+    <section class="card dashboard-tab-panel">
+      <div class="tab-header">
+        <button class="tab-button active" data-tab="health">📈 Health Timeline</button>
+        <button class="tab-button" data-tab="activity">🧭 Recent Pool Activity</button>
+        <button class="tab-button" data-tab="alerts">🚨 Operational Alerts</button>
+        <button class="tab-button" data-tab="blocks">🧾 Block History</button>
       </div>
-      <div id="health-timeline" class="timeline-list">
-        <div class="timeline-item neutral">
-          <span class="timeline-dot"></span>
-          <span>Waiting for health data...</span>
+
+      <div id="tab-health" class="tab-content active">
+        <div id="health-timeline" class="timeline-list">
+          <div class="timeline-item neutral">
+            <span class="timeline-dot"></span>
+            <span>Waiting for health data...</span>
+          </div>
         </div>
       </div>
-    </section>
 
-    <section class="activity-section card">
-      <div class="table-header">
-        <h3>🧭 Recent Pool Activity</h3>
-      </div>
-      <div id="activity-log" class="activity-list">
-        <div class="activity-item info">
-          <strong>Awaiting activity</strong>
-          <span>Pool events will appear here as workers and services change state.</span>
+      <div id="tab-activity" class="tab-content">
+        <div id="activity-log" class="activity-list">
+          <div class="activity-item info">
+            <strong>Awaiting activity</strong>
+            <span>Pool events will appear here as workers and services change state.</span>
+          </div>
         </div>
       </div>
-    </section>
 
-    <section class="alerts-section card">
-      <div class="table-header">
-        <h3>🚨 Operational Alerts</h3>
+      <div id="tab-alerts" class="tab-content">
+        <div id="alerts-list" class="alerts-list">
+          <div class="alert-item success">
+            <strong>Everything looks healthy.</strong>
+            <span>No operational warnings at the moment.</span>
+          </div>
+        </div>
       </div>
-      <div id="alerts-list" class="alerts-list">
-        <div class="alert-item success">
-          <strong>Everything looks healthy.</strong>
-          <span>No operational warnings at the moment.</span>
+
+      <div id="tab-blocks" class="tab-content">
+        <div id="block-history-list" class="block-history-list">
+          <div class="activity-item info">
+            <strong>Awaiting block history</strong>
+            <span>Recent discovered blocks will appear here.</span>
+          </div>
         </div>
       </div>
     </section>
@@ -178,7 +187,6 @@
                 <th>Uptime</th>
                 <th>Best Share</th>
                 <th>AsicBoost</th>
-                <th>Admin</th>
               </tr>
             </thead>
             <tbody id="workers-tbody">
@@ -190,10 +198,10 @@
         </div>
       </section>
 
-      <!-- Blocks Mined Ledger -->
+      <!-- Latest Solo Block -->
       <section class="blocks-section card">
         <div class="table-header">
-          <h3>💎 Solo Blocks Found (Latest 3)</h3>
+          <h3>💎 Latest Solo Block</h3>
         </div>
         <div id="blocks-list" class="blocks-list">
           <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
@@ -205,6 +213,24 @@
   <footer>
     <p>Powered by <strong>ntpool SHA-256 Solo Engine</strong> (Node Type Pool) • Modelled after CKPool architecture • Direct Coinbase Payout</p>
   </footer>
+
+  <div id="worker-action-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="true"></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="worker-modal-title">
+      <div class="modal-header">
+        <h3 id="worker-modal-title">Worker Actions</h3>
+        <button class="modal-close" data-close-modal="true" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="worker-modal-summary">Select an action for this miner.</p>
+        <div class="modal-actions">
+          <button class="modal-action primary" data-worker-action="resume">Resume</button>
+          <button class="modal-action warning" data-worker-action="disable">Disable</button>
+          <button class="modal-action danger" data-worker-action="ban">Ban</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
