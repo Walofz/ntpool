@@ -107,6 +107,17 @@ function closeWorkerActionModal() {
   delete modal.dataset.sessionId;
 }
 
+async function loadInitialStats() {
+  try {
+    const res = await fetch('/api/stats');
+    if (!res.ok) return;
+    const data = await res.json();
+    updateDashboard(data);
+  } catch (e) {
+    console.warn('Initial stats fetch failed, waiting for WebSocket data...', e);
+  }
+}
+
 function initWebSocket() {
   socket = new WebSocket(wsUrl);
 
@@ -119,7 +130,12 @@ function initWebSocket() {
     }
   };
 
+  socket.onerror = () => {
+    loadInitialStats();
+  };
+
   socket.onclose = () => {
+    loadInitialStats();
     setTimeout(initWebSocket, 3000);
   };
 }
@@ -402,4 +418,5 @@ document.querySelectorAll('[data-worker-action]').forEach((button) => {
 });
 
 // Initialize
+loadInitialStats();
 initWebSocket();
