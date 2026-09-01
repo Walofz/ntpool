@@ -70,6 +70,93 @@
       </div>
     </section>
 
+    <section class="health-section card">
+      <div class="table-header">
+        <h3>🩺 Pool Health</h3>
+      </div>
+      <div class="health-grid">
+        <div class="health-item">
+          <span class="label">Bitcoin RPC</span>
+          <strong id="rpc-health" class="status-offline">Offline</strong>
+          <small id="rpc-health-detail">Waiting for first heartbeat</small>
+        </div>
+        <div class="health-item">
+          <span class="label">ZMQ Block Feed</span>
+          <strong id="zmq-health" class="status-offline">Offline</strong>
+          <small id="zmq-health-detail">Waiting for first heartbeat</small>
+        </div>
+        <div class="health-item">
+          <span class="label">Pool State</span>
+          <strong id="pool-health" class="status-offline">Degraded</strong>
+          <small>Operational summary</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="health-timeline card">
+      <div class="table-header">
+        <h3>📈 Health Timeline</h3>
+      </div>
+      <div id="health-timeline" class="timeline-list">
+        <div class="timeline-item neutral">
+          <span class="timeline-dot"></span>
+          <span>Waiting for health data...</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="activity-section card">
+      <div class="table-header">
+        <h3>🧭 Recent Pool Activity</h3>
+      </div>
+      <div id="activity-log" class="activity-list">
+        <div class="activity-item info">
+          <strong>Awaiting activity</strong>
+          <span>Pool events will appear here as workers and services change state.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="alerts-section card">
+      <div class="table-header">
+        <h3>🚨 Operational Alerts</h3>
+      </div>
+      <div id="alerts-list" class="alerts-list">
+        <div class="alert-item success">
+          <strong>Everything looks healthy.</strong>
+          <span>No operational warnings at the moment.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="analytics-section card">
+      <div class="table-header">
+        <h3>📊 Worker Performance Summary</h3>
+      </div>
+      <div class="analytics-grid">
+        <div class="mini-stat">
+          <span class="label">Top Worker</span>
+          <strong id="top-worker">—</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Best Share</span>
+          <strong id="best-share-worker">—</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Active / Disabled / Banned</span>
+          <strong id="status-summary">0 / 0 / 0</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Reject Rate</span>
+          <strong id="reject-rate">0.0%</strong>
+        </div>
+      </div>
+      <div class="analytics-list-wrap">
+        <h4>Top workers by 1m hashrate</h4>
+        <div id="worker-analytics-list" class="analytics-list"></div>
+      </div>
+    </section>
+
     <div class="content-split">
       <!-- Active Connected Workers Table -->
       <section class="table-section card">
@@ -83,15 +170,20 @@
               <tr>
                 <th>Miner Address</th>
                 <th>Worker</th>
+                <th>Status</th>
                 <th>Diff</th>
                 <th>Hashrate (1m)</th>
+                <th>Accepted</th>
+                <th>Rejected</th>
+                <th>Uptime</th>
                 <th>Best Share</th>
                 <th>AsicBoost</th>
+                <th>Admin</th>
               </tr>
             </thead>
             <tbody id="workers-tbody">
               <tr>
-                <td colspan="6" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
+                <td colspan="11" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
               </tr>
             </tbody>
           </table>

@@ -7,16 +7,22 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"ntpool/config"
 )
 
 type ZmqBlockSubscriber struct {
-	cfg          *config.Config
-	onBlockFound func(blockHash string)
-	conn         net.Conn
-	stopChan     chan struct{}
+	cfg             *config.Config
+	onBlockFound    func(blockHash string)
+	conn            net.Conn
+	stopChan        chan struct{}
+	mu              sync.RWMutex
+	lastConnectedAt time.Time
+	lastCheckAt     time.Time
+	lastError       string
+	lastBlockAt     time.Time
 }
 
 func NewZmqBlockSubscriber(cfg *config.Config, onBlockFound func(blockHash string)) *ZmqBlockSubscriber {
@@ -27,9 +33,51 @@ func NewZmqBlockSubscriber(cfg *config.Config, onBlockFound func(blockHash strin
 	}
 }
 
+func (z *ZmqBlockSubscriber) setHealthState(connected bool, err error) {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	z.lastCheckAt = time.Now()
+	if connected {
+		z.lastConnectedAt = z.lastCheckAt
+		z.lastError = ""
+		return
+	}
+	z.lastError = ""
+	if err != nil {
+		z.lastError = err.Error()
+	}
+}
+
+func (z *ZmqBlockSubscriber) markBlockSeen() {
+	z.mu.Lock()
+	defer z.mu.Unlock()
+	z.lastBlockAt = time.Now()
+}
+
+func (z *ZmqBlockSubscriber) HealthStatus() map[string]interface{} {
+	z.mu.RLock()
+	defer z.mu.RUnlock()
+
+	healthy := !z.lastConnectedAt.IsZero() && time.Since(z.lastConnectedAt) <= 30*time.Second
+	return map[string]interface{}{
+		"healthy":         healthy,
+		"lastCheckAt":     z.lastCheckAt,
+		"lastConnectedAt": z.lastConnectedAt,
+		"lastError":       z.lastError,
+		"lastBlockAt":     z.lastBlockAt,
+		"status": func() string {
+			if healthy {
+				return "online"
+			}
+			return "offline"
+		}(),
+	}
+}
+
 func (z *ZmqBlockSubscriber) Start() {
 	if z.cfg.ZmqHost == "" || z.cfg.ZmqPort <= 0 {
 		log.Printf("[ZMQ Go] ZMQ host or port not set, skipping ZMQ connection.")
+		z.setHealthState(false, fmt.Errorf("ZMQ host or port not configured"))
 		return
 	}
 
@@ -50,6 +98,7 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 		log.Printf("[ZMQ Go] Connecting to Bitcoin Node ZMQ at %s...", addr)
 		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 		if err != nil {
+			z.setHealthState(false, err)
 			log.Printf("[ZMQ Go] Failed to connect to ZMQ (%v), retrying in 5 seconds...", err)
 			time.Sleep(5 * time.Second)
 			continue
@@ -57,9 +106,11 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 		lastConnectAt = time.Now()
 
 		z.conn = conn
+		z.setHealthState(true, nil)
 		log.Printf("[ZMQ Go] Connected to ZMQ socket at %s! Listening for instant block notifications...", addr)
 
 		if err := z.handshakeAndSubscribe(conn); err != nil {
+			z.setHealthState(false, err)
 			log.Printf("[ZMQ Go] ZMQ handshake error: %v, reconnecting...", err)
 			conn.Close()
 			time.Sleep(3 * time.Second)
@@ -67,6 +118,7 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 		}
 
 		if err := z.readLoop(conn); err != nil {
+			z.setHealthState(false, err)
 			log.Printf("[ZMQ Go] Read loop ended: %v. Reconnecting...", err)
 		}
 		conn.Close()
@@ -213,6 +265,8 @@ func (z *ZmqBlockSubscriber) readLoop(conn net.Conn) error {
 		}
 
 		hashHex := hex.EncodeToString(hashBytes)
+		z.markBlockSeen()
+		z.setHealthState(true, nil)
 		log.Printf("⚡ [ZMQ Instant Notification] New Block Detected on Network! (Hash: %s)", hashHex)
 		if z.onBlockFound != nil {
 			z.onBlockFound(hashHex)

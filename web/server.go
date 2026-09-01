@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"ntpool/bitcoin"
 	"ntpool/config"
 	"ntpool/crypto"
 	"ntpool/pool"
@@ -24,16 +25,69 @@ type WebDashboardServer struct {
 	cfg           *config.Config
 	stratumServer *stratum.StratumServer
 	jobManager    *pool.JobManager
+	bitcoinRpc    *bitcoin.BitcoinRpcClient
+	zmqSub        *bitcoin.ZmqBlockSubscriber
 	upgrader      websocket.Upgrader
 	clients       map[*websocket.Conn]bool
+	healthHistory []map[string]interface{}
+	historyMu     sync.Mutex
 	mu            sync.Mutex
 }
 
-func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumServer, jm *pool.JobManager) *WebDashboardServer {
+func buildHealthTimelineEntry(rpcHealthy, zmqHealthy bool, connectedWorkers, alertCount int) map[string]interface{} {
+	overall := "online"
+	switch {
+	case !rpcHealthy && !zmqHealthy:
+		overall = "offline"
+	case !rpcHealthy || !zmqHealthy || alertCount > 0:
+		overall = "degraded"
+	}
+
+	return map[string]interface{}{
+		"ts":               time.Now().Format(time.RFC3339),
+		"overall":          overall,
+		"rpcHealthy":       rpcHealthy,
+		"zmqHealthy":       zmqHealthy,
+		"connectedWorkers": connectedWorkers,
+		"alerts":           alertCount,
+	}
+}
+
+func buildPoolActivityEvent(severity, title, detail string) map[string]interface{} {
+	return map[string]interface{}{
+		"ts":       time.Now().Format(time.RFC3339),
+		"severity": severity,
+		"title":    title,
+		"detail":   detail,
+	}
+}
+
+func (w *WebDashboardServer) recordHealthSnapshot(entry map[string]interface{}) {
+	w.historyMu.Lock()
+	defer w.historyMu.Unlock()
+
+	w.healthHistory = append(w.healthHistory, entry)
+	if len(w.healthHistory) > 12 {
+		w.healthHistory = w.healthHistory[len(w.healthHistory)-12:]
+	}
+}
+
+func (w *WebDashboardServer) recentHealthHistory() []map[string]interface{} {
+	w.historyMu.Lock()
+	defer w.historyMu.Unlock()
+
+	history := make([]map[string]interface{}, len(w.healthHistory))
+	copy(history, w.healthHistory)
+	return history
+}
+
+func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumServer, jm *pool.JobManager, rpc *bitcoin.BitcoinRpcClient, zmq *bitcoin.ZmqBlockSubscriber) *WebDashboardServer {
 	return &WebDashboardServer{
 		cfg:           cfg,
 		stratumServer: stratumServer,
 		jobManager:    jm,
+		bitcoinRpc:    rpc,
+		zmqSub:        zmq,
 		clients:       make(map[*websocket.Conn]bool),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -95,18 +149,26 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 		uniqueMiners[s.MinerAddress] = true
 		h1m := s.GetHashrate(60)
 		h5m := s.GetHashrate(300)
+		uptimeSeconds := int64(time.Since(s.ConnectedAt).Seconds())
 
 		poolHashrate1m += h1m
 		poolHashrate5m += h5m
 
 		workersList = append(workersList, map[string]interface{}{
-			"address":       s.MinerAddress,
-			"workerName":    s.WorkerName,
-			"difficulty":    s.CurrentDiff,
-			"hashrate1m":    h1m,
-			"hashrate5m":    h5m,
-			"asicboost":     s.VersionRollingEnabled,
-			"bestShareDiff": s.BestShareDiff,
+			"sessionId":      s.ID,
+			"address":        s.MinerAddress,
+			"workerName":     s.WorkerName,
+			"difficulty":     s.CurrentDiff,
+			"hashrate1m":     h1m,
+			"hashrate5m":     h5m,
+			"asicboost":      s.VersionRollingEnabled,
+			"bestShareDiff":  s.BestShareDiff,
+			"acceptedShares": s.AcceptedShares,
+			"rejectedShares": s.RejectedShares,
+			"uptimeSeconds":  uptimeSeconds,
+			"status":         s.GetSessionStatus(),
+			"disabledReason": s.DisabledReason,
+			"bannedReason":   s.BannedReason,
 		})
 	}
 
@@ -126,6 +188,77 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 		}
 	}
 
+	rpcHealth := map[string]interface{}{"healthy": false, "status": "offline"}
+	if w.bitcoinRpc != nil {
+		rpcHealth = w.bitcoinRpc.HealthStatus()
+	}
+
+	zmqHealth := map[string]interface{}{"healthy": false, "status": "offline"}
+	if w.zmqSub != nil {
+		zmqHealth = w.zmqSub.HealthStatus()
+	}
+
+	alerts := []map[string]interface{}{}
+	if rpcHealth["healthy"] != true {
+		alerts = append(alerts, map[string]interface{}{
+			"severity": "warning",
+			"title":    "Bitcoin RPC is stale",
+			"detail": func() string {
+				if msg, ok := rpcHealth["lastError"].(string); ok && msg != "" {
+					return msg
+				}
+				return "No recent RPC heartbeat received"
+			}(),
+		})
+	}
+	if zmqHealth["healthy"] != true {
+		alerts = append(alerts, map[string]interface{}{
+			"severity": "warning",
+			"title":    "ZMQ block feed is offline",
+			"detail": func() string {
+				if msg, ok := zmqHealth["lastError"].(string); ok && msg != "" {
+					return msg
+				}
+				return "No recent ZMQ connection or message activity"
+			}(),
+		})
+	}
+	activityLog := []map[string]interface{}{}
+	if rpcHealth["healthy"] != true {
+		activityLog = append(activityLog, buildPoolActivityEvent("warning", "Bitcoin RPC is stale", func() string {
+			if msg, ok := rpcHealth["lastError"].(string); ok && msg != "" {
+				return msg
+			}
+			return "No recent RPC heartbeat received"
+		}()))
+	}
+	if zmqHealth["healthy"] != true {
+		activityLog = append(activityLog, buildPoolActivityEvent("warning", "ZMQ block feed is offline", func() string {
+			if msg, ok := zmqHealth["lastError"].(string); ok && msg != "" {
+				return msg
+			}
+			return "No recent ZMQ connection or message activity"
+		}()))
+	}
+	if len(sessions) == 0 {
+		alerts = append(alerts, map[string]interface{}{
+			"severity": "info",
+			"title":    "No connected workers",
+			"detail":   "The pool is active but no miners are currently connected",
+		})
+		activityLog = append(activityLog, buildPoolActivityEvent("info", "No connected workers", "The pool is active but no miners are currently connected"))
+	} else if len(sessions) > 0 {
+		activityLog = append(activityLog, buildPoolActivityEvent("success", "Workers connected", fmt.Sprintf("%d workers are currently connected and reporting hashrate", len(sessions))))
+	}
+
+	healthEntry := buildHealthTimelineEntry(
+		rpcHealth["healthy"] == true,
+		zmqHealth["healthy"] == true,
+		len(sessions),
+		len(alerts),
+	)
+	w.recordHealthSnapshot(healthEntry)
+
 	return map[string]interface{}{
 		"poolName":          w.cfg.PoolName,
 		"stratumPort":       w.cfg.StratumPort,
@@ -139,6 +272,19 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 		"poolHashrate5m":    poolHashrate5m,
 		"blocksFound":       w.stratumServer.FoundBlocks,
 		"workers":           workersList,
+		"rpcHealth":         rpcHealth,
+		"zmqHealth":         zmqHealth,
+		"alerts":            alerts,
+		"activityLog":       activityLog,
+		"healthTimeline":    w.recentHealthHistory(),
+		"poolHealth": map[string]interface{}{
+			"overall": func() string {
+				if rpcHealth["healthy"] == true && len(alerts) == 0 {
+					return "online"
+				}
+				return "degraded"
+			}(),
+		},
 	}
 }
 
@@ -171,6 +317,44 @@ func (w *WebDashboardServer) Start() error {
 	mux.HandleFunc("/api/stats", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(w.calculatePoolStats())
+	})
+
+	mux.HandleFunc("/api/admin/worker", func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var payload struct {
+			SessionID string `json:"sessionId"`
+			Action    string `json:"action"`
+			Reason    string `json:"reason"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(rw, "invalid payload", http.StatusBadRequest)
+			return
+		}
+
+		ok := false
+		switch payload.Action {
+		case "disable":
+			ok = w.stratumServer.DisableSession(payload.SessionID, payload.Reason)
+		case "ban":
+			ok = w.stratumServer.BanSession(payload.SessionID, payload.Reason)
+		case "resume":
+			ok = w.stratumServer.ResumeSession(payload.SessionID)
+		default:
+			http.Error(rw, "unsupported action", http.StatusBadRequest)
+			return
+		}
+
+		if !ok {
+			http.Error(rw, "worker not found", http.StatusNotFound)
+			return
+		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(map[string]interface{}{"ok": true, "action": payload.Action})
 	})
 
 	mux.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {

@@ -108,6 +108,42 @@ func (s *StratumServer) resetAllBestShares() {
 	}
 }
 
+func (s *StratumServer) DisableSession(sessionID string, reason string) bool {
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session == nil {
+		return false
+	}
+	session.Disable(reason)
+	return true
+}
+
+func (s *StratumServer) BanSession(sessionID string, reason string) bool {
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session == nil {
+		return false
+	}
+	session.Ban(reason)
+	if session.Conn != nil {
+		_ = session.Conn.Close()
+	}
+	return true
+}
+
+func (s *StratumServer) ResumeSession(sessionID string) bool {
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session == nil {
+		return false
+	}
+	session.Resume()
+	return true
+}
+
 func (s *StratumServer) notifyBlockFound(block FoundBlock) {
 	if s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
 		return
