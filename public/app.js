@@ -21,8 +21,8 @@ function formatDifficulty(diff) {
 }
 
 function truncateAddress(addr) {
-  if (!addr || addr.length < 12) return addr;
-  return addr.substring(0, 8) + '...' + addr.substring(addr.length - 6);
+  if (!addr) return 'Unknown';
+  return addr;
 }
 
 function formatUptime(seconds) {
@@ -280,8 +280,8 @@ function updateDashboard(data) {
   } else {
     tbody.innerHTML = data.workers.map(w => `
       <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
-        <td class="mono worker-select" title="${w.address}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
-        <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName}</strong></td>
+        <td class="mono worker-select" title="${w.address || ''}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
+        <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName || 'worker'}</strong></td>
         <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
         <td class="mono">${w.difficulty}</td>
         <td class="mono">${formatHashrate(w.hashrate1m)}</td>
@@ -346,13 +346,13 @@ function updateDashboard(data) {
 
         <div class="block-metric">
           <span class="block-label">Block hash</span>
-          <strong>${latestBlock.hash}</strong>
+          <strong>${latestBlock.hash || 'Unknown hash'}</strong>
         </div>
 
         <div class="block-meta-grid">
           <div>
             <span class="block-label">Found by</span>
-            <strong>${minerAddress} / ${minerName}</strong>
+            <strong>${minerAddress || 'Unknown miner'} / ${minerName || 'Unknown worker'}</strong>
           </div>
           <div>
             <span class="block-label">Passed</span>
@@ -385,7 +385,7 @@ function updateDashboard(data) {
             ${allBlocks.map((block) => `
               <tr>
                 <td class="height">#${block.height}</td>
-                <td class="hash">${block.hash}</td>
+                <td class="hash">${block.hash || 'Unknown hash'}</td>
                 <td class="miner">${(block.miner ? truncateAddress(block.miner) : 'Unknown')} / ${block.worker || 'worker'}</td>
                 <td class="time">${formatTimeAgo(block.timestamp)}</td>
               </tr>
