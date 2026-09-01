@@ -132,14 +132,24 @@
 
     <section class="card dashboard-tab-panel">
       <div class="tab-header">
-        <button class="tab-button active" data-tab="health">📈 Health Timeline</button>
+        <button class="tab-button active" data-tab="blocks">🧾 Block History</button>
+        <button class="tab-button" data-tab="health">📈 Health Timeline</button>
         <button class="tab-button" data-tab="activity">🧭 Recent Pool Activity</button>
         <button class="tab-button" data-tab="alerts">🚨 Operational Alerts</button>
-        <button class="tab-button" data-tab="blocks">🧾 Block History</button>
+        <button class="tab-button" data-tab="workers">⚡ Workers</button>
       </div>
 
-      <div id="tab-health" class="tab-content active">
-        <div id="health-timeline" class="timeline-list">
+      <div id="tab-blocks" class="tab-content active">
+        <div id="block-history-list" class="block-history-list">
+          <div class="activity-item info">
+            <strong>Awaiting block history</strong>
+            <span>Recent discovered blocks will appear here.</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-health" class="tab-content">
+        <div id="health-timeline" class="timeline-list compact">
           <div class="timeline-item neutral">
             <span class="timeline-dot"></span>
             <span>Waiting for health data...</span>
@@ -165,24 +175,8 @@
         </div>
       </div>
 
-      <div id="tab-blocks" class="tab-content">
-        <div id="block-history-list" class="block-history-list">
-          <div class="activity-item info">
-            <strong>Awaiting block history</strong>
-            <span>Recent discovered blocks will appear here.</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <div class="content-split">
-      <!-- Active Connected Workers Table -->
-      <section class="table-section card">
-        <div class="table-header">
-          <h3>⚡ Connected ASIC Workers</h3>
-          <span id="worker-badge" class="badge">0 Online</span>
-        </div>
-        <div class="table-responsive">
+      <div id="tab-workers" class="tab-content">
+        <div class="table-responsive compact-table-wrap">
           <table>
             <thead>
               <tr>
@@ -200,14 +194,14 @@
             </thead>
             <tbody id="workers-tbody">
               <tr>
-                <td colspan="11" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
+                <td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
+    </section>
 
-    </div>
   </main>
 
   <footer>
