@@ -141,12 +141,17 @@ function initWebSocket() {
 }
 
 function updateDashboard(data) {
-  document.getElementById('pool-hashrate').innerText = formatHashrate(data.poolHashrate1m || 0);
-  document.getElementById('connected-workers').innerText = data.connectedWorkers || 0;
-  document.getElementById('block-height').innerText = data.blockHeight ? `#${data.blockHeight}` : '0';
-  document.getElementById('network-diff').innerText = formatDifficulty(data.networkDifficulty || 0);
-  document.getElementById('blocks-count').innerText = data.blocksFound ? data.blocksFound.length : 0;
-  document.getElementById('worker-badge').innerText = `${data.connectedWorkers || 0} Online`;
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.innerText = value;
+  };
+
+  setText('pool-hashrate', formatHashrate(data.poolHashrate1m || 0));
+  setText('connected-workers', data.connectedWorkers || 0);
+  setText('block-height', data.blockHeight ? `#${data.blockHeight}` : '0');
+  setText('network-diff', formatDifficulty(data.networkDifficulty || 0));
+  setText('blocks-count', data.blocksFound ? data.blocksFound.length : 0);
+  setText('worker-badge', `${data.connectedWorkers || 0} Online`);
 
   const rpcHealth = data.rpcHealth || { healthy: false, status: 'offline', lastError: '' };
   const zmqHealth = data.zmqHealth || { healthy: false, status: 'offline', lastError: '' };
@@ -173,62 +178,68 @@ function updateDashboard(data) {
   poolEl.className = poolHealth.overall === 'online' ? 'status-online' : 'status-offline';
 
   const alertsList = document.getElementById('alerts-list');
-  if (alerts.length === 0) {
-    alertsList.innerHTML = `
-      <div class="alert-item success">
-        <strong>Everything looks healthy.</strong>
-        <span>No operational warnings at the moment.</span>
-      </div>
-    `;
-  } else {
-    alertsList.innerHTML = alerts.map(alert => `
-      <div class="alert-item ${alert.severity || 'warning'}">
-        <strong>${alert.title || 'Operational alert'}</strong>
-        <span>${alert.detail || 'Check the pool for issues.'}</span>
-      </div>
-    `).join('');
+  if (alertsList) {
+    if (alerts.length === 0) {
+      alertsList.innerHTML = `
+        <div class="alert-item success">
+          <strong>Everything looks healthy.</strong>
+          <span>No operational warnings at the moment.</span>
+        </div>
+      `;
+    } else {
+      alertsList.innerHTML = alerts.map(alert => `
+        <div class="alert-item ${alert.severity || 'warning'}">
+          <strong>${alert.title || 'Operational alert'}</strong>
+          <span>${alert.detail || 'Check the pool for issues.'}</span>
+        </div>
+      `).join('');
+    }
   }
 
   const activityList = document.getElementById('activity-log');
-  if (!activityLog.length) {
-    activityList.innerHTML = `
-      <div class="activity-item info">
-        <strong>Awaiting activity</strong>
-        <span>Pool events will appear here as workers and services change state.</span>
-      </div>
-    `;
-  } else {
-    activityList.innerHTML = activityLog.slice(-5).reverse().map(event => {
-      const time = new Date(event.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return `
-        <div class="activity-item ${event.severity || 'info'}">
-          <strong>${event.title || 'Pool activity'}</strong>
-          <span>${event.detail || 'No further details.'} • ${time}</span>
+  if (activityList) {
+    if (!activityLog.length) {
+      activityList.innerHTML = `
+        <div class="activity-item info">
+          <strong>Awaiting activity</strong>
+          <span>Pool events will appear here as workers and services change state.</span>
         </div>
       `;
-    }).join('');
+    } else {
+      activityList.innerHTML = activityLog.slice(-5).reverse().map(event => {
+        const time = new Date(event.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="activity-item ${event.severity || 'info'}">
+            <strong>${event.title || 'Pool activity'}</strong>
+            <span>${event.detail || 'No further details.'} • ${time}</span>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   const timelineList = document.getElementById('health-timeline');
-  if (!healthTimeline.length) {
-    timelineList.innerHTML = `
-      <div class="timeline-item neutral">
-        <span class="timeline-dot"></span>
-        <span>Waiting for health data...</span>
-      </div>
-    `;
-  } else {
-    timelineList.innerHTML = [...healthTimeline].reverse().slice(0, 3).map((entry) => {
-      const status = entry.overall || 'degraded';
-      const icon = status === 'online' ? '●' : status === 'offline' ? '■' : '◐';
-      const time = new Date(entry.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return `
-        <div class="timeline-item ${status}">
-          <span class="timeline-dot">${icon}</span>
-          <span>${status.toUpperCase()} • ${time} • ${entry.connectedWorkers || 0} workers</span>
+  if (timelineList) {
+    if (!healthTimeline.length) {
+      timelineList.innerHTML = `
+        <div class="timeline-item neutral">
+          <span class="timeline-dot"></span>
+          <span>Waiting for health data...</span>
         </div>
       `;
-    }).join('');
+    } else {
+      timelineList.innerHTML = [...healthTimeline].reverse().slice(0, 3).map((entry) => {
+        const status = entry.overall || 'degraded';
+        const icon = status === 'online' ? '●' : status === 'offline' ? '■' : '◐';
+        const time = new Date(entry.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="timeline-item ${status}">
+            <span class="timeline-dot">${icon}</span>
+            <span>${status.toUpperCase()} • ${time} • ${entry.connectedWorkers || 0} workers</span>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   const workers = Array.isArray(data.workers) ? data.workers : [];
@@ -246,60 +257,71 @@ function updateDashboard(data) {
     return best;
   }, null);
 
-  document.getElementById('top-worker').innerText = topWorker ? `${topWorker.workerName || 'N/A'} (${formatHashrate(topWorker.hashrate1m || 0)})` : '—';
-  document.getElementById('best-share-worker').innerText = bestShareWorker ? `${bestShareWorker.workerName || 'N/A'} (${formatDifficulty(bestShareWorker.bestShareDiff || 0)})` : '—';
-  document.getElementById('status-summary').innerText = `${active} / ${disabled} / ${banned}`;
-  document.getElementById('reject-rate').innerText = `${rejectRate.toFixed(1)}%`;
+  const topWorkerEl = document.getElementById('top-worker');
+  if (topWorkerEl) topWorkerEl.innerText = topWorker ? `${topWorker.workerName || 'N/A'} (${formatHashrate(topWorker.hashrate1m || 0)})` : '—';
+
+  const bestShareWorkerEl = document.getElementById('best-share-worker');
+  if (bestShareWorkerEl) bestShareWorkerEl.innerText = bestShareWorker ? `${bestShareWorker.workerName || 'N/A'} (${formatDifficulty(bestShareWorker.bestShareDiff || 0)})` : '—';
+
+  const statusSummaryEl = document.getElementById('status-summary');
+  if (statusSummaryEl) statusSummaryEl.innerText = `${active} / ${disabled} / ${banned}`;
+
+  const rejectRateEl = document.getElementById('reject-rate');
+  if (rejectRateEl) rejectRateEl.innerText = `${rejectRate.toFixed(1)}%`;
 
   const analyticsList = document.getElementById('worker-analytics-list');
-  if (!workers.length) {
-    analyticsList.innerHTML = '<div class="analytics-empty">No worker activity yet.</div>';
-  } else {
-    const ranked = [...workers].sort((a, b) => (b.hashrate1m || 0) - (a.hashrate1m || 0)).slice(0, 5);
-    analyticsList.innerHTML = ranked.map((w, idx) => `
-      <div class="analytics-item">
-        <div class="analytics-head">
-          <span>#${idx + 1} ${w.workerName || 'worker'}</span>
-          <span class="${statusClass(w.status)}">${(w.status || 'active')}</span>
+  if (analyticsList) {
+    if (!workers.length) {
+      analyticsList.innerHTML = '<div class="analytics-empty">No worker activity yet.</div>';
+    } else {
+      const ranked = [...workers].sort((a, b) => (b.hashrate1m || 0) - (a.hashrate1m || 0)).slice(0, 5);
+      analyticsList.innerHTML = ranked.map((w, idx) => `
+        <div class="analytics-item">
+          <div class="analytics-head">
+            <span>#${idx + 1} ${w.workerName || 'worker'}</span>
+            <span class="${statusClass(w.status)}">${(w.status || 'active')}</span>
+          </div>
+          <div class="analytics-meta">
+            <span>${formatHashrate(w.hashrate1m || 0)}</span>
+            <span>Best ${formatDifficulty(w.bestShareDiff || 0)}</span>
+          </div>
+          <div class="analytics-bar">
+            <span style="width: ${Math.min(100, ((w.hashrate1m || 0) / (ranked[0].hashrate1m || 1)) * 100)}%"></span>
+          </div>
         </div>
-        <div class="analytics-meta">
-          <span>${formatHashrate(w.hashrate1m || 0)}</span>
-          <span>Best ${formatDifficulty(w.bestShareDiff || 0)}</span>
-        </div>
-        <div class="analytics-bar">
-          <span style="width: ${Math.min(100, ((w.hashrate1m || 0) / (ranked[0].hashrate1m || 1)) * 100)}%"></span>
-        </div>
-      </div>
-    `).join('');
+      `).join('');
+    }
   }
 
   // Render workers
   const tbody = document.getElementById('workers-tbody');
-  if (!data.workers || data.workers.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td></tr>`;
-  } else {
-    tbody.innerHTML = data.workers.map(w => `
-      <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
-        <td class="mono worker-select" title="${w.address || ''}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
-        <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName || 'worker'}</strong></td>
-        <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
-        <td class="mono">${w.difficulty}</td>
-        <td class="mono">${formatHashrate(w.hashrate1m)}</td>
-        <td class="mono">${w.acceptedShares || 0}</td>
-        <td class="mono">${w.rejectedShares || 0}</td>
-        <td class="mono">${formatUptime(w.uptimeSeconds)}</td>
-        <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
-        <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
-      </tr>
-    `).join('');
+  if (tbody) {
+    if (!data.workers || data.workers.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td></tr>`;
+    } else {
+      tbody.innerHTML = data.workers.map(w => `
+        <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
+          <td class="mono worker-select" title="${w.address || ''}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
+          <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName || 'worker'}</strong></td>
+          <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
+          <td class="mono">${w.difficulty}</td>
+          <td class="mono">${formatHashrate(w.hashrate1m)}</td>
+          <td class="mono">${w.acceptedShares || 0}</td>
+          <td class="mono">${w.rejectedShares || 0}</td>
+          <td class="mono">${formatUptime(w.uptimeSeconds)}</td>
+          <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
+          <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
+        </tr>
+      `).join('');
 
-    tbody.querySelectorAll('.worker-select').forEach((cell) => {
-      cell.addEventListener('click', (event) => {
-        const sessionId = event.currentTarget.dataset.sessionId;
-        const worker = (data.workers || []).find((item) => item.sessionId === sessionId);
-        if (worker) openWorkerActionModal(worker);
+      tbody.querySelectorAll('.worker-select').forEach((cell) => {
+        cell.addEventListener('click', (event) => {
+          const sessionId = event.currentTarget.dataset.sessionId;
+          const worker = (data.workers || []).find((item) => item.sessionId === sessionId);
+          if (worker) openWorkerActionModal(worker);
+        });
       });
-    });
+    }
   }
 
   // Render latest solo block and recent history
