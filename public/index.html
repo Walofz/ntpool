@@ -7,10 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="theme-modern.css">
 </head>
-<body data-theme="classic">
+<body data-theme="modern">
   <div class="background-glow"></div>
 
   <header class="navbar">
@@ -22,10 +21,6 @@
       </div>
     </div>
     <div class="topbar-actions">
-      <div class="theme-switcher" aria-label="Theme switcher">
-        <button class="theme-button active" data-theme="classic" type="button">Classic</button>
-        <button class="theme-button" data-theme="modern" type="button">Modern</button>
-      </div>
       <div class="stratum-info">
         <span class="pulse-dot"></span>
         Stratum: <code id="stratum-url">stratum+tcp://localhost:3333</code>
@@ -44,16 +39,32 @@
       </div>
 
       <nav class="sidebar-menu" aria-label="Sidebar navigation">
-        <div class="nav-item active"><span class="nav-icon">◈</span>Overview</div>
-        <div class="nav-item"><span class="nav-icon">⛏</span>Workers</div>
-        <div class="nav-item"><span class="nav-icon">▣</span>Blocks</div>
-        <div class="nav-item"><span class="nav-icon">⚙</span>Health</div>
+        <button class="nav-item active" data-tab="blocks" type="button"><span class="nav-icon">◈</span>Overview</button>
+        <button class="nav-item" data-tab="workers" type="button"><span class="nav-icon">⛏</span>Workers</button>
+        <button class="nav-item" data-tab="blocks" type="button"><span class="nav-icon">▣</span>Blocks</button>
+        <button class="nav-item" data-tab="health" type="button"><span class="nav-icon">⚙</span>Health</button>
+        <button class="nav-item" data-tab="alerts" type="button"><span class="nav-icon">⚑</span>Alerts</button>
       </nav>
 
-      <div class="mini-sidebar-card">
-        <span class="mini-label">Pool state</span>
-        <strong id="pool-health" class="status-offline">Degraded</strong>
-        <small>Operational summary</small>
+      <div class="sidebar-health-card">
+        <div class="sidebar-health-header">
+          <span class="mini-label">🩺 Pool Health</span>
+        </div>
+        <div class="health-item sidebar-health-item">
+          <span class="label">Bitcoin RPC</span>
+          <strong id="rpc-health" class="status-offline">Offline</strong>
+          <small id="rpc-health-detail">Waiting for first heartbeat</small>
+        </div>
+        <div class="health-item sidebar-health-item">
+          <span class="label">ZMQ Block Feed</span>
+          <strong id="zmq-health" class="status-offline">Offline</strong>
+          <small id="zmq-health-detail">Waiting for first heartbeat</small>
+        </div>
+        <div class="health-item sidebar-health-item">
+          <span class="label">Pool State</span>
+          <strong id="pool-health" class="status-offline">Degraded</strong>
+          <small>Operational summary</small>
+        </div>
       </div>
     </aside>
 
@@ -101,39 +112,14 @@
         </div>
       </section>
 
-      <div class="modern-layout">
-        <section class="health-section card">
-          <div class="table-header">
-            <h3>🩺 Pool Health</h3>
-          </div>
-          <div class="health-grid">
-            <div class="health-item">
-              <span class="label">Bitcoin RPC</span>
-              <strong id="rpc-health" class="status-offline">Offline</strong>
-              <small id="rpc-health-detail">Waiting for first heartbeat</small>
-            </div>
-            <div class="health-item">
-              <span class="label">ZMQ Block Feed</span>
-              <strong id="zmq-health" class="status-offline">Offline</strong>
-              <small id="zmq-health-detail">Waiting for first heartbeat</small>
-            </div>
-            <div class="health-item">
-              <span class="label">Pool State</span>
-              <strong id="pool-health" class="status-offline">Degraded</strong>
-              <small>Operational summary</small>
-            </div>
-          </div>
-        </section>
-
-        <section class="blocks-section card latest-block-horizontal">
-          <div class="table-header">
-            <h3>💎 Latest Solo Block</h3>
-          </div>
-          <div id="blocks-list" class="blocks-list horizontal-block-card">
-            <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
-          </div>
-        </section>
-      </div>
+      <section class="blocks-section card latest-block-horizontal">
+        <div class="table-header">
+          <h3>💎 Latest Solo Block</h3>
+        </div>
+        <div id="blocks-list" class="blocks-list horizontal-block-card">
+          <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
+        </div>
+      </section>
 
       <section class="analytics-section card">
         <div class="table-header">

@@ -4,36 +4,6 @@ const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 let socket = null;
 const hashrateTrend = new Map();
 
-function applyTheme(themeName) {
-  const theme = themeName === 'modern' ? 'modern' : 'classic';
-  document.body.dataset.theme = theme;
-  document.querySelectorAll('.theme-button').forEach((button) => {
-    button.classList.toggle('active', button.dataset.theme === theme);
-  });
-  try {
-    localStorage.setItem('ntpool-theme', theme);
-  } catch (e) {
-    // ignore storage issues in restricted environments
-  }
-}
-
-function initTheme() {
-  const savedTheme = (() => {
-    try {
-      return localStorage.getItem('ntpool-theme');
-    } catch (e) {
-      return null;
-    }
-  })();
-
-  const selectedTheme = savedTheme === 'modern' ? 'modern' : 'classic';
-  applyTheme(selectedTheme);
-
-  document.querySelectorAll('.theme-button').forEach((button) => {
-    button.addEventListener('click', () => applyTheme(button.dataset.theme));
-  });
-}
-
 function smoothHashrateValue(key, value, alpha = 0.28) {
   const numericValue = Number(value || 0);
   if (!Number.isFinite(numericValue)) return 0;
@@ -129,6 +99,9 @@ function setActiveTab(tabName) {
   document.querySelectorAll('.tab-button').forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === tabName);
   });
+  document.querySelectorAll('.nav-item').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tab === tabName);
+  });
   document.querySelectorAll('.tab-content').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `tab-${tabName}`);
   });
@@ -164,7 +137,7 @@ async function loadInitialStats() {
   }
 }
 
-initTheme();
+document.body.dataset.theme = 'modern';
 
 function initWebSocket() {
   socket = new WebSocket(wsUrl);
@@ -490,6 +463,12 @@ function updateDashboard(data) {
 }
 
 document.querySelectorAll('.tab-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveTab(button.dataset.tab);
+  });
+});
+
+document.querySelectorAll('.nav-item').forEach((button) => {
   button.addEventListener('click', () => {
     setActiveTab(button.dataset.tab);
   });
