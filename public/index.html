@@ -8,8 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme-modern.css">
 </head>
-<body>
+<body data-theme="classic">
   <div class="background-glow"></div>
 
   <header class="navbar">
@@ -20,9 +21,15 @@
         <span class="badge">Node Type Pool • CKPool Engine</span>
       </div>
     </div>
-    <div class="stratum-info">
-      <span class="pulse-dot"></span>
-      Stratum: <code id="stratum-url">stratum+tcp://localhost:3333</code>
+    <div class="topbar-actions">
+      <div class="theme-switcher" aria-label="Theme switcher">
+        <button class="theme-button active" data-theme="classic" type="button">Classic</button>
+        <button class="theme-button" data-theme="modern" type="button">Modern</button>
+      </div>
+      <div class="stratum-info">
+        <span class="pulse-dot"></span>
+        Stratum: <code id="stratum-url">stratum+tcp://localhost:3333</code>
+      </div>
     </div>
   </header>
 

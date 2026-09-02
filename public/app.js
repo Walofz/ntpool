@@ -4,6 +4,36 @@ const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 let socket = null;
 const hashrateTrend = new Map();
 
+function applyTheme(themeName) {
+  const theme = themeName === 'modern' ? 'modern' : 'classic';
+  document.body.dataset.theme = theme;
+  document.querySelectorAll('.theme-button').forEach((button) => {
+    button.classList.toggle('active', button.dataset.theme === theme);
+  });
+  try {
+    localStorage.setItem('ntpool-theme', theme);
+  } catch (e) {
+    // ignore storage issues in restricted environments
+  }
+}
+
+function initTheme() {
+  const savedTheme = (() => {
+    try {
+      return localStorage.getItem('ntpool-theme');
+    } catch (e) {
+      return null;
+    }
+  })();
+
+  const selectedTheme = savedTheme === 'modern' ? 'modern' : 'classic';
+  applyTheme(selectedTheme);
+
+  document.querySelectorAll('.theme-button').forEach((button) => {
+    button.addEventListener('click', () => applyTheme(button.dataset.theme));
+  });
+}
+
 function smoothHashrateValue(key, value, alpha = 0.28) {
   const numericValue = Number(value || 0);
   if (!Number.isFinite(numericValue)) return 0;
@@ -133,6 +163,8 @@ async function loadInitialStats() {
     console.warn('Initial stats fetch failed, waiting for WebSocket data...', e);
   }
 }
+
+initTheme();
 
 function initWebSocket() {
   socket = new WebSocket(wsUrl);
@@ -301,9 +333,13 @@ function updateDashboard(data) {
       analyticsList.innerHTML = '<div class="analytics-empty">No worker activity yet.</div>';
     } else {
       const ranked = [...workers].sort((a, b) => (b.hashrate1m || 0) - (a.hashrate1m || 0)).slice(0, 5);
+      const totalRate = ranked.reduce((sum, worker) => sum + (worker.hashrate1m || 0), 0) || 1;
+
       analyticsList.innerHTML = ranked.map((w, idx) => {
         const key = `worker-${w.sessionId || w.workerName || idx}`;
         const displayRate = smoothHashrateValue(key, w.hashrate1m || 0);
+        const sharePercent = totalRate > 0 ? (displayRate / totalRate) * 100 : 0;
+
         return `
           <div class="analytics-item">
             <div class="analytics-head">
@@ -315,7 +351,7 @@ function updateDashboard(data) {
               <span>Best ${formatDifficulty(w.bestShareDiff || 0)}</span>
             </div>
             <div class="analytics-bar">
-              <span style="width: ${Math.min(100, ((displayRate) / (Math.max(ranked[0] ? smoothHashrateValue(`worker-${ranked[0].sessionId || ranked[0].workerName || 0}`, ranked[0].hashrate1m || 0) : 1), 1)) * 100)}%"></span>
+              <span style="width: ${Math.max(8, Math.min(100, sharePercent))}%"></span>
             </div>
           </div>
         `;
