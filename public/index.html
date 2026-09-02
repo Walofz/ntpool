@@ -34,183 +34,207 @@
   </header>
 
   <main class="dashboard-container">
-    <!-- Hero Stats Grid -->
-    <section class="stats-grid">
-      <div class="card stat-card">
-        <div class="card-icon">🚀</div>
-        <div class="stat-meta">
-          <span class="label">Pool Hashrate (1m)</span>
-          <h2 id="pool-hashrate" class="stat-value">0.00 TH/s</h2>
+    <aside class="sidebar-modern card">
+      <div class="brand-panel">
+        <div class="brand-mark">⚡</div>
+        <div>
+          <div class="brand-name">NT Pool</div>
+          <small>Mining monitor</small>
         </div>
       </div>
 
-      <div class="card stat-card">
-        <div class="card-icon">⛏️</div>
-        <div class="stat-meta">
-          <span class="label">Active Workers</span>
-          <h2 id="connected-workers" class="stat-value">0</h2>
-        </div>
-      </div>
+      <nav class="sidebar-menu" aria-label="Sidebar navigation">
+        <div class="nav-item active"><span class="nav-icon">◈</span>Overview</div>
+        <div class="nav-item"><span class="nav-icon">⛏</span>Workers</div>
+        <div class="nav-item"><span class="nav-icon">▣</span>Blocks</div>
+        <div class="nav-item"><span class="nav-icon">⚙</span>Health</div>
+      </nav>
 
-      <div class="card stat-card">
-        <div class="card-icon">📦</div>
-        <div class="stat-meta">
-          <span class="label">Block Height</span>
-          <h2 id="block-height" class="stat-value">0</h2>
-        </div>
+      <div class="mini-sidebar-card">
+        <span class="mini-label">Pool state</span>
+        <strong id="pool-health" class="status-offline">Degraded</strong>
+        <small>Operational summary</small>
       </div>
+    </aside>
 
-      <div class="card stat-card">
-        <div class="card-icon">🌐</div>
-        <div class="stat-meta">
-          <span class="label">Network Difficulty</span>
-          <h2 id="network-diff" class="stat-value">0.00</h2>
-        </div>
-      </div>
-
-      <div class="card stat-card">
-        <div class="card-icon">🏆</div>
-        <div class="stat-meta">
-          <span class="label">Blocks Mined</span>
-          <h2 id="blocks-count" class="stat-value">0</h2>
-        </div>
-      </div>
-    </section>
-
-    <div class="modern-layout">
-      <section class="health-section card">
-        <div class="table-header">
-          <h3>🩺 Pool Health</h3>
-        </div>
-        <div class="health-grid">
-          <div class="health-item">
-            <span class="label">Bitcoin RPC</span>
-            <strong id="rpc-health" class="status-offline">Offline</strong>
-            <small id="rpc-health-detail">Waiting for first heartbeat</small>
+    <div class="main-modern">
+      <!-- Hero Stats Grid -->
+      <section class="stats-grid">
+        <div class="card stat-card">
+          <div class="card-icon">🚀</div>
+          <div class="stat-meta">
+            <span class="label">Pool Hashrate (1m)</span>
+            <h2 id="pool-hashrate" class="stat-value">0.00 TH/s</h2>
           </div>
-          <div class="health-item">
-            <span class="label">ZMQ Block Feed</span>
-            <strong id="zmq-health" class="status-offline">Offline</strong>
-            <small id="zmq-health-detail">Waiting for first heartbeat</small>
+        </div>
+
+        <div class="card stat-card">
+          <div class="card-icon">⛏️</div>
+          <div class="stat-meta">
+            <span class="label">Active Workers</span>
+            <h2 id="connected-workers" class="stat-value">0</h2>
           </div>
-          <div class="health-item">
-            <span class="label">Pool State</span>
-            <strong id="pool-health" class="status-offline">Degraded</strong>
-            <small>Operational summary</small>
+        </div>
+
+        <div class="card stat-card">
+          <div class="card-icon">📦</div>
+          <div class="stat-meta">
+            <span class="label">Block Height</span>
+            <h2 id="block-height" class="stat-value">0</h2>
+          </div>
+        </div>
+
+        <div class="card stat-card">
+          <div class="card-icon">🌐</div>
+          <div class="stat-meta">
+            <span class="label">Network Difficulty</span>
+            <h2 id="network-diff" class="stat-value">0.00</h2>
+          </div>
+        </div>
+
+        <div class="card stat-card">
+          <div class="card-icon">🏆</div>
+          <div class="stat-meta">
+            <span class="label">Blocks Mined</span>
+            <h2 id="blocks-count" class="stat-value">0</h2>
           </div>
         </div>
       </section>
 
-      <section class="blocks-section card latest-block-horizontal">
+      <div class="modern-layout">
+        <section class="health-section card">
+          <div class="table-header">
+            <h3>🩺 Pool Health</h3>
+          </div>
+          <div class="health-grid">
+            <div class="health-item">
+              <span class="label">Bitcoin RPC</span>
+              <strong id="rpc-health" class="status-offline">Offline</strong>
+              <small id="rpc-health-detail">Waiting for first heartbeat</small>
+            </div>
+            <div class="health-item">
+              <span class="label">ZMQ Block Feed</span>
+              <strong id="zmq-health" class="status-offline">Offline</strong>
+              <small id="zmq-health-detail">Waiting for first heartbeat</small>
+            </div>
+            <div class="health-item">
+              <span class="label">Pool State</span>
+              <strong id="pool-health" class="status-offline">Degraded</strong>
+              <small>Operational summary</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="blocks-section card latest-block-horizontal">
+          <div class="table-header">
+            <h3>💎 Latest Solo Block</h3>
+          </div>
+          <div id="blocks-list" class="blocks-list horizontal-block-card">
+            <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
+          </div>
+        </section>
+      </div>
+
+      <section class="analytics-section card">
         <div class="table-header">
-          <h3>💎 Latest Solo Block</h3>
+          <h3>📊 Worker Performance Summary</h3>
         </div>
-        <div id="blocks-list" class="blocks-list horizontal-block-card">
-          <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
+        <div class="analytics-grid">
+          <div class="mini-stat">
+            <span class="label">Top Worker</span>
+            <strong id="top-worker">—</strong>
+          </div>
+          <div class="mini-stat">
+            <span class="label">Best Share</span>
+            <strong id="best-share-worker">—</strong>
+          </div>
+          <div class="mini-stat">
+            <span class="label">Active / Disabled / Banned</span>
+            <strong id="status-summary">0 / 0 / 0</strong>
+          </div>
+          <div class="mini-stat">
+            <span class="label">Reject Rate</span>
+            <strong id="reject-rate">0.0%</strong>
+          </div>
+        </div>
+        <div class="analytics-list-wrap">
+          <h4>Top workers by 1m hashrate</h4>
+          <div id="worker-analytics-list" class="analytics-list"></div>
+        </div>
+      </section>
+
+      <section class="card dashboard-tab-panel">
+        <div class="tab-header">
+          <button class="tab-button active" data-tab="blocks">🧾 Block History</button>
+          <button class="tab-button" data-tab="health">📈 Health Timeline</button>
+          <button class="tab-button" data-tab="activity">🧭 Recent Pool Activity</button>
+          <button class="tab-button" data-tab="alerts">🚨 Operational Alerts</button>
+          <button class="tab-button" data-tab="workers">⚡ Workers</button>
+        </div>
+
+        <div id="tab-blocks" class="tab-content active">
+          <div id="block-history-list" class="block-history-list">
+            <div class="activity-item info">
+              <strong>Awaiting block history</strong>
+              <span>Recent discovered blocks will appear here.</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-health" class="tab-content">
+          <div id="health-timeline" class="timeline-list compact">
+            <div class="timeline-item neutral">
+              <span class="timeline-dot"></span>
+              <span>Waiting for health data...</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-activity" class="tab-content">
+          <div id="activity-log" class="activity-list">
+            <div class="activity-item info">
+              <strong>Awaiting activity</strong>
+              <span>Pool events will appear here as workers and services change state.</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-alerts" class="tab-content">
+          <div id="alerts-list" class="alerts-list">
+            <div class="alert-item success">
+              <strong>Everything looks healthy.</strong>
+              <span>No operational warnings at the moment.</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-workers" class="tab-content">
+          <div class="table-responsive compact-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Miner Address</th>
+                  <th>Worker</th>
+                  <th>Status</th>
+                  <th>Diff</th>
+                  <th>Hashrate (1m)</th>
+                  <th>Accepted</th>
+                  <th>Rejected</th>
+                  <th>Uptime</th>
+                  <th>Best Share</th>
+                  <th>AsicBoost</th>
+                </tr>
+              </thead>
+              <tbody id="workers-tbody">
+                <tr>
+                  <td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
-
-    <section class="analytics-section card">
-      <div class="table-header">
-        <h3>📊 Worker Performance Summary</h3>
-      </div>
-      <div class="analytics-grid">
-        <div class="mini-stat">
-          <span class="label">Top Worker</span>
-          <strong id="top-worker">—</strong>
-        </div>
-        <div class="mini-stat">
-          <span class="label">Best Share</span>
-          <strong id="best-share-worker">—</strong>
-        </div>
-        <div class="mini-stat">
-          <span class="label">Active / Disabled / Banned</span>
-          <strong id="status-summary">0 / 0 / 0</strong>
-        </div>
-        <div class="mini-stat">
-          <span class="label">Reject Rate</span>
-          <strong id="reject-rate">0.0%</strong>
-        </div>
-      </div>
-      <div class="analytics-list-wrap">
-        <h4>Top workers by 1m hashrate</h4>
-        <div id="worker-analytics-list" class="analytics-list"></div>
-      </div>
-    </section>
-
-    <section class="card dashboard-tab-panel">
-      <div class="tab-header">
-        <button class="tab-button active" data-tab="blocks">🧾 Block History</button>
-        <button class="tab-button" data-tab="health">📈 Health Timeline</button>
-        <button class="tab-button" data-tab="activity">🧭 Recent Pool Activity</button>
-        <button class="tab-button" data-tab="alerts">🚨 Operational Alerts</button>
-        <button class="tab-button" data-tab="workers">⚡ Workers</button>
-      </div>
-
-      <div id="tab-blocks" class="tab-content active">
-        <div id="block-history-list" class="block-history-list">
-          <div class="activity-item info">
-            <strong>Awaiting block history</strong>
-            <span>Recent discovered blocks will appear here.</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-health" class="tab-content">
-        <div id="health-timeline" class="timeline-list compact">
-          <div class="timeline-item neutral">
-            <span class="timeline-dot"></span>
-            <span>Waiting for health data...</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-activity" class="tab-content">
-        <div id="activity-log" class="activity-list">
-          <div class="activity-item info">
-            <strong>Awaiting activity</strong>
-            <span>Pool events will appear here as workers and services change state.</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-alerts" class="tab-content">
-        <div id="alerts-list" class="alerts-list">
-          <div class="alert-item success">
-            <strong>Everything looks healthy.</strong>
-            <span>No operational warnings at the moment.</span>
-          </div>
-        </div>
-      </div>
-
-      <div id="tab-workers" class="tab-content">
-        <div class="table-responsive compact-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Miner Address</th>
-                <th>Worker</th>
-                <th>Status</th>
-                <th>Diff</th>
-                <th>Hashrate (1m)</th>
-                <th>Accepted</th>
-                <th>Rejected</th>
-                <th>Uptime</th>
-                <th>Best Share</th>
-                <th>AsicBoost</th>
-              </tr>
-            </thead>
-            <tbody id="workers-tbody">
-              <tr>
-                <td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
   </main>
 
   <footer>
