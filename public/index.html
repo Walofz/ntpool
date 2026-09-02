@@ -77,37 +77,39 @@
       </div>
     </section>
 
-    <section class="health-section card">
-      <div class="table-header">
-        <h3>🩺 Pool Health</h3>
-      </div>
-      <div class="health-grid">
-        <div class="health-item">
-          <span class="label">Bitcoin RPC</span>
-          <strong id="rpc-health" class="status-offline">Offline</strong>
-          <small id="rpc-health-detail">Waiting for first heartbeat</small>
+    <div class="modern-layout">
+      <section class="health-section card">
+        <div class="table-header">
+          <h3>🩺 Pool Health</h3>
         </div>
-        <div class="health-item">
-          <span class="label">ZMQ Block Feed</span>
-          <strong id="zmq-health" class="status-offline">Offline</strong>
-          <small id="zmq-health-detail">Waiting for first heartbeat</small>
+        <div class="health-grid">
+          <div class="health-item">
+            <span class="label">Bitcoin RPC</span>
+            <strong id="rpc-health" class="status-offline">Offline</strong>
+            <small id="rpc-health-detail">Waiting for first heartbeat</small>
+          </div>
+          <div class="health-item">
+            <span class="label">ZMQ Block Feed</span>
+            <strong id="zmq-health" class="status-offline">Offline</strong>
+            <small id="zmq-health-detail">Waiting for first heartbeat</small>
+          </div>
+          <div class="health-item">
+            <span class="label">Pool State</span>
+            <strong id="pool-health" class="status-offline">Degraded</strong>
+            <small>Operational summary</small>
+          </div>
         </div>
-        <div class="health-item">
-          <span class="label">Pool State</span>
-          <strong id="pool-health" class="status-offline">Degraded</strong>
-          <small>Operational summary</small>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="blocks-section card latest-block-horizontal">
-      <div class="table-header">
-        <h3>💎 Latest Solo Block</h3>
-      </div>
-      <div id="blocks-list" class="blocks-list horizontal-block-card">
-        <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
-      </div>
-    </section>
+      <section class="blocks-section card latest-block-horizontal">
+        <div class="table-header">
+          <h3>💎 Latest Solo Block</h3>
+        </div>
+        <div id="blocks-list" class="blocks-list horizontal-block-card">
+          <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
+        </div>
+      </section>
+    </div>
 
     <section class="analytics-section card">
       <div class="table-header">

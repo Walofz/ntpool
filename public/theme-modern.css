@@ -116,7 +116,16 @@ body[data-theme='modern'] .stat-meta .stat-value {
   letter-spacing: -0.02em;
 }
 
-body[data-theme='modern'] .health-section {
+body[data-theme='modern'] .modern-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+body[data-theme='modern'] .health-section,
+body[data-theme='modern'] .blocks-section {
+  min-height: 100%;
   padding: 1.2rem 1.2rem 1rem;
 }
 
