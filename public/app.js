@@ -2,6 +2,22 @@ const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 
 let socket = null;
+const hashrateTrend = new Map();
+
+function smoothHashrateValue(key, value, alpha = 0.28) {
+  const numericValue = Number(value || 0);
+  if (!Number.isFinite(numericValue)) return 0;
+
+  const previous = hashrateTrend.get(key);
+  if (previous === undefined) {
+    hashrateTrend.set(key, numericValue);
+    return numericValue;
+  }
+
+  const smoothed = previous + alpha * (numericValue - previous);
+  hashrateTrend.set(key, smoothed);
+  return smoothed;
+}
 
 function formatHashrate(hashrate) {
   if (hashrate >= 1e12) return (hashrate / 1e12).toFixed(2) + ' TH/s';
@@ -146,6 +162,8 @@ function updateDashboard(data) {
     if (el) el.innerText = value;
   };
 
+  const displayHashrate = (key, value) => formatHashrate(smoothHashrateValue(key, value));
+
   const renderStatusBadge = (element, isHealthy, fallbackLabel) => {
     if (!element) return;
     const online = Boolean(isHealthy);
@@ -155,7 +173,7 @@ function updateDashboard(data) {
     element.innerHTML = `<span class="status-indicator ${tone}">${online ? '●' : '■'}</span><span>${label}</span>`;
   };
 
-  setText('pool-hashrate', formatHashrate(data.poolHashrate1m || 0));
+  setText('pool-hashrate', displayHashrate('pool-hashrate', data.poolHashrate1m || 0));
   setText('connected-workers', data.connectedWorkers || 0);
   setText('block-height', data.blockHeight ? `#${data.blockHeight}` : '0');
   setText('network-diff', formatDifficulty(data.networkDifficulty || 0));
@@ -266,7 +284,7 @@ function updateDashboard(data) {
   }, null);
 
   const topWorkerEl = document.getElementById('top-worker');
-  if (topWorkerEl) topWorkerEl.innerText = topWorker ? `${topWorker.workerName || 'N/A'} (${formatHashrate(topWorker.hashrate1m || 0)})` : '—';
+  if (topWorkerEl) topWorkerEl.innerText = topWorker ? `${topWorker.workerName || 'N/A'} (${displayHashrate(`worker-${topWorker.sessionId || topWorker.workerName || 'top'}`, topWorker.hashrate1m || 0)})` : '—';
 
   const bestShareWorkerEl = document.getElementById('best-share-worker');
   if (bestShareWorkerEl) bestShareWorkerEl.innerText = bestShareWorker ? `${bestShareWorker.workerName || 'N/A'} (${formatDifficulty(bestShareWorker.bestShareDiff || 0)})` : '—';
@@ -283,21 +301,25 @@ function updateDashboard(data) {
       analyticsList.innerHTML = '<div class="analytics-empty">No worker activity yet.</div>';
     } else {
       const ranked = [...workers].sort((a, b) => (b.hashrate1m || 0) - (a.hashrate1m || 0)).slice(0, 5);
-      analyticsList.innerHTML = ranked.map((w, idx) => `
-        <div class="analytics-item">
-          <div class="analytics-head">
-            <span>#${idx + 1} ${w.workerName || 'worker'}</span>
-            <span class="${statusClass(w.status)}">${(w.status || 'active')}</span>
+      analyticsList.innerHTML = ranked.map((w, idx) => {
+        const key = `worker-${w.sessionId || w.workerName || idx}`;
+        const displayRate = smoothHashrateValue(key, w.hashrate1m || 0);
+        return `
+          <div class="analytics-item">
+            <div class="analytics-head">
+              <span>#${idx + 1} ${w.workerName || 'worker'}</span>
+              <span class="${statusClass(w.status)}">${(w.status || 'active')}</span>
+            </div>
+            <div class="analytics-meta">
+              <span>${formatHashrate(displayRate)}</span>
+              <span>Best ${formatDifficulty(w.bestShareDiff || 0)}</span>
+            </div>
+            <div class="analytics-bar">
+              <span style="width: ${Math.min(100, ((displayRate) / (Math.max(ranked[0] ? smoothHashrateValue(`worker-${ranked[0].sessionId || ranked[0].workerName || 0}`, ranked[0].hashrate1m || 0) : 1), 1)) * 100)}%"></span>
+            </div>
           </div>
-          <div class="analytics-meta">
-            <span>${formatHashrate(w.hashrate1m || 0)}</span>
-            <span>Best ${formatDifficulty(w.bestShareDiff || 0)}</span>
-          </div>
-          <div class="analytics-bar">
-            <span style="width: ${Math.min(100, ((w.hashrate1m || 0) / (ranked[0].hashrate1m || 1)) * 100)}%"></span>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   }
 
@@ -307,20 +329,24 @@ function updateDashboard(data) {
     if (!data.workers || data.workers.length === 0) {
       tbody.innerHTML = `<tr><td colspan="10" class="text-muted">No active ASIC workers connected. Connect miner to stratum+tcp://localhost:3333</td></tr>`;
     } else {
-      tbody.innerHTML = data.workers.map(w => `
-        <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
-          <td class="mono worker-select" title="${w.address || ''}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
-          <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName || 'worker'}</strong></td>
-          <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
-          <td class="mono">${w.difficulty}</td>
-          <td class="mono">${formatHashrate(w.hashrate1m)}</td>
-          <td class="mono">${w.acceptedShares || 0}</td>
-          <td class="mono">${w.rejectedShares || 0}</td>
-          <td class="mono">${formatUptime(w.uptimeSeconds)}</td>
-          <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
-          <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = data.workers.map(w => {
+        const workerKey = `worker-${w.sessionId || w.workerName || w.address || 'anon'}`;
+        const displayRate = smoothHashrateValue(workerKey, w.hashrate1m || 0);
+        return `
+          <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
+            <td class="mono worker-select" title="${w.address || ''}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
+            <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName || 'worker'}</strong></td>
+            <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
+            <td class="mono">${w.difficulty}</td>
+            <td class="mono">${formatHashrate(displayRate)}</td>
+            <td class="mono">${w.acceptedShares || 0}</td>
+            <td class="mono">${w.rejectedShares || 0}</td>
+            <td class="mono">${formatUptime(w.uptimeSeconds)}</td>
+            <td class="mono">${formatDifficulty(w.bestShareDiff || 0)}</td>
+            <td>${w.asicboost ? '<span class="badge badge-asicboost">AsicBoost ON</span>' : '<span class="badge">Standard</span>'}</td>
+          </tr>
+        `;
+      }).join('');
 
       tbody.querySelectorAll('.worker-select').forEach((cell) => {
         cell.addEventListener('click', (event) => {
