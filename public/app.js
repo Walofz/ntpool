@@ -146,6 +146,15 @@ function updateDashboard(data) {
     if (el) el.innerText = value;
   };
 
+  const renderStatusBadge = (element, isHealthy, fallbackLabel) => {
+    if (!element) return;
+    const online = Boolean(isHealthy);
+    const label = online ? 'Online' : fallbackLabel;
+    const tone = online ? 'online' : 'offline';
+    element.className = `health-status ${tone}`;
+    element.innerHTML = `<span class="status-indicator ${tone}">${online ? '●' : '■'}</span><span>${label}</span>`;
+  };
+
   setText('pool-hashrate', formatHashrate(data.poolHashrate1m || 0));
   setText('connected-workers', data.connectedWorkers || 0);
   setText('block-height', data.blockHeight ? `#${data.blockHeight}` : '0');
@@ -166,16 +175,15 @@ function updateDashboard(data) {
   const rpcDetail = document.getElementById('rpc-health-detail');
   const zmqDetail = document.getElementById('zmq-health-detail');
 
-  rpcEl.textContent = rpcHealth.healthy ? 'Online' : 'Offline';
-  rpcEl.className = rpcHealth.healthy ? 'status-online' : 'status-offline';
+  renderStatusBadge(rpcEl, rpcHealth.healthy, 'Offline');
   rpcDetail.textContent = rpcHealth.lastError ? rpcHealth.lastError : (rpcHealth.healthy ? 'RPC heartbeat healthy' : 'Waiting for first heartbeat');
 
-  zmqEl.textContent = zmqHealth.healthy ? 'Online' : 'Offline';
-  zmqEl.className = zmqHealth.healthy ? 'status-online' : 'status-offline';
+  renderStatusBadge(zmqEl, zmqHealth.healthy, 'Offline');
   zmqDetail.textContent = zmqHealth.lastError ? zmqHealth.lastError : (zmqHealth.healthy ? 'ZMQ subscription active' : 'Waiting for ZMQ connection');
 
-  poolEl.textContent = poolHealth.overall === 'online' ? 'Online' : 'Degraded';
-  poolEl.className = poolHealth.overall === 'online' ? 'status-online' : 'status-offline';
+  const poolState = poolHealth.overall === 'online' ? 'online' : (poolHealth.overall === 'degraded' ? 'degraded' : 'offline');
+  renderStatusBadge(poolEl, poolState === 'online', poolState === 'degraded' ? 'Degraded' : 'Offline');
+  poolEl.setAttribute('data-state', poolState);
 
   const alertsList = document.getElementById('alerts-list');
   if (alertsList) {
@@ -387,7 +395,7 @@ function updateDashboard(data) {
   }
 
   const blockHistoryList = document.getElementById('block-history-list');
-  const allBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 30) : [];
+  const allBlocks = Array.isArray(data.blocksFound) ? data.blocksFound.slice(0, 10) : [];
 
   if (!allBlocks.length) {
     blockHistoryList.innerHTML = `<div class="activity-item info"><strong>No discovered blocks yet</strong><span>Block history will appear here once a valid block is found.</span></div>`;

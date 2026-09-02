@@ -234,12 +234,56 @@ body {
   font-size: 0.7rem;
 }
 
+.health-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.status-indicator.online {
+  color: var(--success);
+  background: rgba(0, 230, 118, 0.12);
+  box-shadow: 0 0 10px rgba(0, 230, 118, 0.25);
+}
+
+.status-indicator.offline {
+  color: #ff8a80;
+  background: rgba(255, 138, 128, 0.12);
+  box-shadow: 0 0 10px rgba(255, 138, 128, 0.2);
+}
+
 .status-online {
   color: var(--success);
 }
 
 .status-offline {
   color: #ff8a80;
+}
+
+.health-status.online {
+  color: var(--success);
+}
+
+.health-status.offline {
+  color: #ff8a80;
+}
+
+.health-status[data-state='degraded'],
+.health-status.degraded {
+  color: #ffc857;
 }
 
 .health-timeline {
