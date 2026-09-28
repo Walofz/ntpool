@@ -39,6 +39,8 @@ services:
       - NTFY_PASSWORD=${NTFY_PASSWORD:-pass}
       - ENABLE_DISCORD=${ENABLE_DISCORD:-false}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - DISCORD_USERNAME=${DISCORD_USERNAME:-}
+      - DISCORD_AVATAR_URL=${DISCORD_AVATAR_URL:-}
     volumes:
       - ./data:/app/data
     # Uncomment if connecting to Bitcoin Core running on the host machine

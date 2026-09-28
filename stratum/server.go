@@ -236,6 +236,12 @@ func (s *StratumServer) notifyDiscordBlockFound(block FoundBlock) {
 		),
 		"allowed_mentions": map[string]interface{}{"parse": []string{}},
 	}
+	if username := strings.TrimSpace(s.cfg.DiscordUsername); username != "" {
+		payload["username"] = username
+	}
+	if avatarURL := strings.TrimSpace(s.cfg.DiscordAvatarURL); avatarURL != "" {
+		payload["avatar_url"] = avatarURL
+	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("[Discord] Failed to encode block notification: %v", err)

@@ -92,6 +92,8 @@ cp .env.example .env
 | `NTFY_PASSWORD` | password สำหรับ Basic Auth ของ ntfy | `pass` |
 | `ENABLE_DISCORD` | เปิดการแจ้งเตือนบล็อกผ่าน Discord หรือไม่ | `false` |
 | `DISCORD_WEBHOOK_URL` | Discord webhook URL สำหรับแจ้งเตือนเมื่อพบบล็อก | `""` |
+| `DISCORD_USERNAME` | ชื่อผู้ส่งที่แสดงใน Discord (ไม่บังคับ) | `""` |
+| `DISCORD_AVATAR_URL` | URL รูปภาพสาธารณะสำหรับ avatar ของผู้ส่ง เช่น PNG (ไม่บังคับ) | `""` |
 
 ## Running Locally
 

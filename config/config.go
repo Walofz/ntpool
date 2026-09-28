@@ -34,6 +34,8 @@ type Config struct {
 	NtfyPassword        string
 	EnableDiscord       bool
 	DiscordWebhookURL   string
+	DiscordUsername     string
+	DiscordAvatarURL    string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -100,5 +102,7 @@ func LoadConfig() *Config {
 		NtfyPassword:        getEnv("NTFY_PASSWORD", "pass"),
 		EnableDiscord:       getEnvBool("ENABLE_DISCORD", false),
 		DiscordWebhookURL:   getEnv("DISCORD_WEBHOOK_URL", ""),
+		DiscordUsername:     getEnv("DISCORD_USERNAME", ""),
+		DiscordAvatarURL:    getEnv("DISCORD_AVATAR_URL", ""),
 	}
 }
