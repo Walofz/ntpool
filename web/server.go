@@ -24,13 +24,15 @@ import (
 	"ntpool/stratum"
 )
 
-const freiexchangeAURBTCOrderBookURL = "https://api.freiexchange.com/public/orderbook/AUR/BTC"
+const freiexchangeOrderBookURL = "https://api.freiexchange.com/public/orderbook/%s/%s"
 
-type AURMarketQuote struct {
-	PriceBTC  string     `json:"priceBTC,omitempty"`
-	PriceSats int64      `json:"priceSats,omitempty"`
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-	LastError string     `json:"lastError,omitempty"`
+type MarketQuote struct {
+	CoinSymbol  string     `json:"coinSymbol,omitempty"`
+	QuoteSymbol string     `json:"quoteSymbol,omitempty"`
+	Price       string     `json:"price,omitempty"`
+	PriceSats   int64      `json:"priceSats,omitempty"`
+	UpdatedAt   *time.Time `json:"updatedAt,omitempty"`
+	LastError   string     `json:"lastError,omitempty"`
 }
 
 type WebDashboardServer struct {
@@ -45,7 +47,7 @@ type WebDashboardServer struct {
 	historyMu        sync.Mutex
 	mu               sync.Mutex
 	marketPriceMu    sync.RWMutex
-	aurMarketQuote   AURMarketQuote
+	marketQuote      MarketQuote
 	marketHTTPClient *http.Client
 }
 
@@ -123,27 +125,63 @@ func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumSer
 	}
 }
 
-func (w *WebDashboardServer) currentAURMarketQuote() AURMarketQuote {
+func (w *WebDashboardServer) currentMarketQuote() MarketQuote {
 	w.marketPriceMu.RLock()
 	defer w.marketPriceMu.RUnlock()
-	return w.aurMarketQuote
+	return w.marketQuote
 }
 
-func (w *WebDashboardServer) refreshAURMarketQuote() {
-	req, err := http.NewRequest(http.MethodGet, freiexchangeAURBTCOrderBookURL, nil)
+func (w *WebDashboardServer) marketQuoteEndpoint() (string, string, string, error) {
+	coinSymbol := strings.TrimSpace(w.cfg.MarketCoinSymbol)
+	if coinSymbol == "" {
+		coinSymbol = strings.TrimSpace(w.cfg.CoinSymbol)
+	}
+	coinSymbol = strings.ToUpper(coinSymbol)
+	quoteSymbol := strings.TrimSpace(w.cfg.MarketQuoteSymbol)
+	if quoteSymbol == "" {
+		quoteSymbol = "BTC"
+	}
+	quoteSymbol = strings.ToUpper(quoteSymbol)
+	if coinSymbol == "" {
+		return "", "", "", fmt.Errorf("market coin symbol is not configured")
+	}
+
+	endpoint := strings.TrimSpace(w.cfg.MarketAPIURL)
+	if endpoint == "" {
+		endpoint = fmt.Sprintf(freiexchangeOrderBookURL, url.PathEscape(coinSymbol), url.PathEscape(quoteSymbol))
+	}
+	endpoint = strings.ReplaceAll(endpoint, "{coin}", url.PathEscape(coinSymbol))
+	endpoint = strings.ReplaceAll(endpoint, "{quote}", url.PathEscape(quoteSymbol))
+
+	parsedEndpoint, err := url.Parse(endpoint)
+	if err != nil || parsedEndpoint.Host == "" || (parsedEndpoint.Scheme != "http" && parsedEndpoint.Scheme != "https") {
+		return "", "", "", fmt.Errorf("market API URL must be an absolute HTTP or HTTPS URL")
+	}
+
+	return endpoint, coinSymbol, quoteSymbol, nil
+}
+
+func (w *WebDashboardServer) refreshMarketQuote() {
+	endpoint, coinSymbol, quoteSymbol, err := w.marketQuoteEndpoint()
 	if err != nil {
-		w.setAURMarketQuoteError(fmt.Errorf("invalid Freiexchange request"))
+		w.setMarketQuoteError(err)
+		return
+	}
+
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		w.setMarketQuoteError(fmt.Errorf("invalid market API request"))
 		return
 	}
 
 	resp, err := w.marketHTTPClient.Do(req)
 	if err != nil {
-		w.setAURMarketQuoteError(fmt.Errorf("could not reach Freiexchange"))
+		w.setMarketQuoteError(fmt.Errorf("could not reach market API"))
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		w.setAURMarketQuoteError(fmt.Errorf("Freiexchange returned %s", resp.Status))
+		w.setMarketQuoteError(fmt.Errorf("market API returned %s", resp.Status))
 		return
 	}
 
@@ -153,44 +191,49 @@ func (w *WebDashboardServer) refreshAURMarketQuote() {
 		} `json:"BUY"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&orderBook); err != nil {
-		w.setAURMarketQuoteError(fmt.Errorf("invalid Freiexchange response"))
+		w.setMarketQuoteError(fmt.Errorf("invalid market API response"))
 		return
 	}
 	if len(orderBook.Buy) == 0 {
-		w.setAURMarketQuoteError(fmt.Errorf("Freiexchange has no AUR buy orders"))
+		w.setMarketQuoteError(fmt.Errorf("market API has no BUY orders"))
 		return
 	}
 
 	priceText := strings.TrimSpace(orderBook.Buy[0].Price)
 	price, err := strconv.ParseFloat(priceText, 64)
 	if err != nil || price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
-		w.setAURMarketQuoteError(fmt.Errorf("invalid AUR/BTC buy price"))
+		w.setMarketQuoteError(fmt.Errorf("invalid market BUY price"))
 		return
 	}
 
 	now := time.Now()
-	w.marketPriceMu.Lock()
-	w.aurMarketQuote = AURMarketQuote{
-		PriceBTC:  priceText,
-		PriceSats: int64(math.Round(price * 1e8)),
-		UpdatedAt: &now,
+	quote := MarketQuote{
+		CoinSymbol:  coinSymbol,
+		QuoteSymbol: quoteSymbol,
+		Price:       priceText,
+		UpdatedAt:   &now,
 	}
-	w.marketPriceMu.Unlock()
-}
-
-func (w *WebDashboardServer) setAURMarketQuoteError(err error) {
+	if strings.EqualFold(quoteSymbol, "BTC") {
+		quote.PriceSats = int64(math.Round(price * 1e8))
+	}
 	w.marketPriceMu.Lock()
-	w.aurMarketQuote.LastError = err.Error()
+	w.marketQuote = quote
 	w.marketPriceMu.Unlock()
 }
 
-func (w *WebDashboardServer) runAURMarketQuotePoller() {
-	w.refreshAURMarketQuote()
+func (w *WebDashboardServer) setMarketQuoteError(err error) {
+	w.marketPriceMu.Lock()
+	w.marketQuote.LastError = err.Error()
+	w.marketPriceMu.Unlock()
+}
+
+func (w *WebDashboardServer) runMarketQuotePoller() {
+	w.refreshMarketQuote()
 
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
-		w.refreshAURMarketQuote()
+		w.refreshMarketQuote()
 	}
 }
 
@@ -362,7 +405,7 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 		"rpcHealth":          rpcHealth,
 		"zmqHealth":          zmqHealth,
 		"notificationStatus": w.stratumServer.GetNotificationStatus(),
-		"aurMarketQuote":     w.currentAURMarketQuote(),
+		"marketQuote":        w.currentMarketQuote(),
 		"alerts":             alerts,
 		"activityLog":        activityLog,
 		"healthTimeline":     w.recentHealthHistory(),
@@ -400,7 +443,7 @@ func (w *WebDashboardServer) startBroadcaster() {
 }
 
 func (w *WebDashboardServer) Start() error {
-	go w.runAURMarketQuotePoller()
+	go w.runMarketQuotePoller()
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./public")))

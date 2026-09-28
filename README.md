@@ -81,6 +81,9 @@ cp .env.example .env
 | `ZMQ_PORT` | พอร์ตของ ZMQ `rawblock` | `28332` |
 | `POOL_NAME` | ชื่อ pool | `ntpool SHA-256 Solo Pool` |
 | `COIN_SYMBOL` | symbol ของเหรียญที่ใช้แสดงผล | `BTC` |
+| `MARKET_API_URL` | URL ของ market API ที่คืน JSON รูปแบบ `BUY[0].price`; รองรับ `{coin}`/`{quote}`; refresh ทุก 5 นาที | Freiexchange orderbook template |
+| `MARKET_COIN_SYMBOL` | เหรียญฝั่ง market; ค่าเริ่มต้นตาม `COIN_SYMBOL` | `COIN_SYMBOL` |
+| `MARKET_QUOTE_SYMBOL` | สกุลเงินที่ใช้แสดงราคา | `BTC` |
 | `COINBASE_TEXT` | ข้อความที่แทรกใน coinbase transaction | `/ntpool/` |
 | `POOL_FEE_PERCENT` | ค่า fee ของ pool | `0.0` |
 | `POOL_FEE_ADDRESS` | ปลายทางสำหรับ fee ของ pool | `""` |

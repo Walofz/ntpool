@@ -217,25 +217,32 @@ function updateDashboard(data) {
     }
   };
 
-  const renderAURMarketQuote = (quote = {}) => {
-    const satsElement = document.getElementById('aur-price-sats');
-    const btcElement = document.getElementById('aur-price-btc');
-    const updatedElement = document.getElementById('aur-price-updated');
-    if (!satsElement || !btcElement || !updatedElement) return;
+  const renderMarketQuote = (quote = {}) => {
+    const pairElement = document.getElementById('market-price-pair');
+    const priceElement = document.getElementById('market-price-display');
+    const conversionElement = document.getElementById('market-price-conversion');
+    const updatedElement = document.getElementById('market-price-updated');
+    if (!pairElement || !priceElement || !conversionElement || !updatedElement) return;
 
-    if (!quote.priceBTC) {
-      satsElement.textContent = 'Unavailable';
-      btcElement.textContent = quote.lastError || 'Waiting for Freiexchange quote';
-      updatedElement.textContent = 'Source: Freiexchange';
+    const coinSymbol = quote.coinSymbol || data.coinSymbol || 'COIN';
+    const quoteSymbol = quote.quoteSymbol || 'BTC';
+    pairElement.textContent = `${coinSymbol} / ${quoteSymbol} (BUY)`;
+
+    if (!quote.price) {
+      priceElement.textContent = 'Unavailable';
+      conversionElement.textContent = quote.lastError || 'Waiting for market API';
+      updatedElement.textContent = 'Source: configured market API';
       return;
     }
 
-    satsElement.textContent = `${quote.priceSats} sats`;
-    btcElement.textContent = `1 AUR = ${quote.priceBTC} BTC`;
+    priceElement.textContent = quoteSymbol.toUpperCase() === 'BTC' && quote.priceSats > 0
+      ? `${quote.priceSats} sats`
+      : `${quote.price} ${quoteSymbol}`;
+    conversionElement.textContent = `1 ${coinSymbol} = ${quote.price} ${quoteSymbol}`;
     const updated = quote.updatedAt ? `Updated ${formatTimeAgo(quote.updatedAt)}` : 'Update time unavailable';
     updatedElement.textContent = quote.lastError
       ? `${updated} • Refresh failed: ${quote.lastError}`
-      : `${updated} • Freiexchange`;
+      : `${updated} • Market API`;
   };
 
   setText('pool-hashrate', displayHashrate('pool-hashrate', data.poolHashrate1m || 0));
@@ -271,7 +278,7 @@ function updateDashboard(data) {
 
   renderNotificationStatus('ntfy', notificationStatus.ntfy);
   renderNotificationStatus('discord', notificationStatus.discord);
-  renderAURMarketQuote(data.aurMarketQuote);
+  renderMarketQuote(data.marketQuote);
 
   const alertsList = document.getElementById('alerts-list');
   if (alertsList) {
