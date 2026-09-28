@@ -24,12 +24,6 @@ func main() {
 	jobManager := pool.NewJobManager(cfg)
 	bitcoinRpc := bitcoin.NewBitcoinRpcClient(cfg)
 	stratumServer := stratum.NewStratumServer(cfg, jobManager, bitcoinRpc)
-	webServer := web.NewWebDashboardServer(cfg, stratumServer, jobManager)
-
-	// Start Stratum Server
-	if err := stratumServer.Start(); err != nil {
-		log.Fatalf("Failed to start Stratum server: %v", err)
-	}
 
 	// Helper to fetch and broadcast new block template
 	updateJob := func(reason string) {
@@ -51,6 +45,13 @@ func main() {
 	zmqSub := bitcoin.NewZmqBlockSubscriber(cfg, func(blockHash string) {
 		updateJob("ZMQ Instant Notification")
 	})
+	webServer := web.NewWebDashboardServer(cfg, stratumServer, jobManager, bitcoinRpc, zmqSub)
+
+	// Start Stratum Server
+	if err := stratumServer.Start(); err != nil {
+		log.Fatalf("Failed to start Stratum server: %v", err)
+	}
+
 	zmqSub.Start()
 
 	// Backup Poller (Every 3 seconds)

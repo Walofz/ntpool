@@ -108,6 +108,42 @@ func (s *StratumServer) resetAllBestShares() {
 	}
 }
 
+func (s *StratumServer) DisableSession(sessionID string, reason string) bool {
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session == nil {
+		return false
+	}
+	session.Disable(reason)
+	return true
+}
+
+func (s *StratumServer) BanSession(sessionID string, reason string) bool {
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session == nil {
+		return false
+	}
+	session.Ban(reason)
+	if session.Conn != nil {
+		_ = session.Conn.Close()
+	}
+	return true
+}
+
+func (s *StratumServer) ResumeSession(sessionID string) bool {
+	s.mu.RLock()
+	session := s.sessions[sessionID]
+	s.mu.RUnlock()
+	if session == nil {
+		return false
+	}
+	session.Resume()
+	return true
+}
+
 func (s *StratumServer) notifyBlockFound(block FoundBlock) {
 	if !s.cfg.EnableNtfy || s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
 		return
@@ -417,12 +453,11 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 	job := s.jobManager.GetJob(jobId)
 	if job == nil {
 		session.RejectedShares++
-		log.Printf("[Share REJECTED] Worker: %s, Reason: stale job, JobID: %s", session.WorkerName, jobId)
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 21, "message": "Stale / Job not found"})
 		return
 	}
 
-	requiredDiff, currentDiff := session.EffectiveSubmitDiff(vardiffSubmitGraceWindow)
+	requiredDiff, _ := session.EffectiveSubmitDiff(vardiffSubmitGraceWindow)
 	minerTarget := crypto.DifficultyToTarget(requiredDiff)
 	networkTarget := crypto.NbitsToTarget(job.NBitsHex)
 
@@ -496,15 +531,12 @@ primaryLoop:
 
 	if !accepted {
 		session.RejectedShares++
-		log.Printf("[Share REJECTED] Worker: %s, Reason: low diff, Achieved: %.2f, Required: %.2f (Current: %.2f)", session.WorkerName, finalShareDiff, requiredDiff, currentDiff)
 		s.sendResponse(session, id, false, map[string]interface{}{
 			"code":    23,
 			"message": fmt.Sprintf("Low difficulty share (Achieved diff %.2f < required %.2f)", finalShareDiff, requiredDiff),
 		})
 		return
 	}
-
-	log.Printf("[Share ACCEPTED] Worker: %s, Achieved Diff: %.2f, Required Diff: %.2f (Current: %.2f)", session.WorkerName, finalShareDiff, requiredDiff, currentDiff)
 
 	newDiff, diffChanged := session.RecordShare(s.cfg, requiredDiff, finalShareDiff)
 

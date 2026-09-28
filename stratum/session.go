@@ -38,6 +38,10 @@ type StratumSession struct {
 	ShareHistory          []ShareHistory
 	LastDiffChangeTime    time.Time
 	LastVardiffTime       time.Time
+	IsDisabled            bool
+	IsBanned              bool
+	DisabledReason        string
+	BannedReason          string
 }
 
 func NewStratumSession(id string, conn net.Conn, extranonce1 string, defaultDiff float64) *StratumSession {
@@ -67,6 +71,43 @@ func (s *StratumSession) ResetBestShare() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.BestShareDiff = 0
+}
+
+func (s *StratumSession) Disable(reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.IsDisabled = true
+	s.DisabledReason = reason
+}
+
+func (s *StratumSession) Ban(reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.IsBanned = true
+	s.BannedReason = reason
+}
+
+func (s *StratumSession) Resume() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.IsDisabled = false
+	s.IsBanned = false
+	s.DisabledReason = ""
+	s.BannedReason = ""
+}
+
+func (s *StratumSession) GetSessionStatus() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch {
+	case s.IsBanned:
+		return "banned"
+	case s.IsDisabled:
+		return "disabled"
+	default:
+		return "active"
+	}
 }
 
 func (s *StratumSession) RecordShare(cfg *config.Config, targetDiff float64, shareDiff float64) (float64, bool) {

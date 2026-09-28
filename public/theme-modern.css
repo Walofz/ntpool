@@ -1,0 +1,568 @@
+﻿:root {
+  --modern-bg: #050b12;
+  --modern-bg-2: #0a1420;
+  --modern-border: rgba(143, 180, 214, 0.18);
+  --modern-text: #edf6ff;
+  --modern-text-soft: #9bb4c9;
+  --modern-cyan: #59d6ff;
+  --modern-blue: #78a9ff;
+  --modern-green: #49dd8a;
+  --modern-amber: #ffcb6b;
+  --modern-red: #ff7d7d;
+  --modern-shadow: 0 22px 60px rgba(0, 0, 0, 0.38);
+}
+
+body[data-theme='modern'] {
+  background:
+    radial-gradient(circle at top left, rgba(89, 214, 255, 0.14), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(120, 169, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, var(--modern-bg) 0%, var(--modern-bg-2) 100%);
+  color: var(--modern-text);
+}
+
+body[data-theme='modern'] .navbar {
+  background: rgba(8, 14, 20, 0.78);
+  border-bottom: 1px solid var(--modern-border);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(16px);
+  padding: 1.1rem 2.2rem;
+}
+
+body[data-theme='modern'] .logo-icon {
+  background: linear-gradient(135deg, #7be7ff, #7ba9ff);
+  -webkit-background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgba(123, 169, 255, 0.3));
+}
+
+body[data-theme='modern'] .logo-text .brand {
+  color: var(--modern-cyan);
+}
+
+body[data-theme='modern'] .badge {
+  background: rgba(89, 214, 255, 0.1);
+  border-color: rgba(89, 214, 255, 0.2);
+  color: var(--modern-cyan);
+}
+
+body[data-theme='modern'] .dashboard-container {
+  max-width: 1600px;
+  padding: 0.9rem 1rem 1.5rem;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+}
+
+body[data-theme='modern'] .card,
+body[data-theme='modern'] .health-item,
+body[data-theme='modern'] .mini-stat,
+body[data-theme='modern'] .analytics-item,
+body[data-theme='modern'] .alert-item,
+body[data-theme='modern'] .activity-item,
+body[data-theme='modern'] .timeline-item {
+  background: linear-gradient(180deg, rgba(14, 23, 32, 0.92), rgba(11, 17, 25, 0.94));
+  border: 1px solid var(--modern-border);
+  box-shadow: var(--modern-shadow);
+}
+
+body[data-theme='modern'] .card {
+  border-radius: 14px;
+}
+
+body[data-theme='modern'] .main-modern {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+body[data-theme='modern'] .sidebar-modern {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  position: sticky;
+  top: 1rem;
+  padding: 0.65rem;
+  background: rgba(8, 12, 18, 0.46);
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+
+body[data-theme='modern'] .brand-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.2rem 0.15rem 0.55rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme='modern'] .brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(89, 214, 255, 0.2), rgba(120, 169, 255, 0.15));
+  color: var(--modern-cyan);
+  font-size: 1.1rem;
+}
+
+body[data-theme='modern'] .brand-name {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+body[data-theme='modern'] .brand-panel small,
+body[data-theme='modern'] .sidebar-health-card small {
+  color: var(--modern-text-soft);
+}
+
+body[data-theme='modern'] .sidebar-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+body[data-theme='modern'] button,
+body[data-theme='modern'] .nav-item {
+  font: inherit;
+}
+
+body[data-theme='modern'] .nav-item {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  color: var(--modern-text-soft);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.7rem 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+body[data-theme='modern'] .nav-item:hover {
+  border-color: rgba(89, 214, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+body[data-theme='modern'] .nav-item.active {
+  background: linear-gradient(135deg, rgba(89, 214, 255, 0.12), rgba(120, 169, 255, 0.08));
+  border-color: rgba(89, 214, 255, 0.22);
+  color: var(--modern-text);
+}
+
+body[data-theme='modern'] .nav-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(89, 214, 255, 0.05);
+  color: var(--modern-cyan);
+  font-size: 0.82rem;
+}
+
+body[data-theme='modern'] .sidebar-health-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme='modern'] .sidebar-health-header {
+  padding-bottom: 0.2rem;
+}
+
+body[data-theme='modern'] .sidebar-health-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  background: rgba(7, 14, 21, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 0.65rem 0.7rem;
+  min-height: auto;
+  box-shadow: none;
+}
+
+body[data-theme='modern'] .sidebar-health-item strong {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+body[data-theme='modern'] .sidebar-health-item .label,
+body[data-theme='modern'] .mini-label {
+  color: var(--modern-text-soft);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-theme='modern'] .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap: 0.6rem;
+}
+
+body[data-theme='modern'] .latest-block-horizontal .blocks-list {
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  width: 100%;
+}
+
+body[data-theme='modern'] .latest-block-horizontal .block-card {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+body[data-theme='modern'] .recent-blocks-panel {
+  flex: 0 0 240px;
+  margin-top: 0.15rem;
+  padding: 0.35rem 0.45rem 0;
+}
+
+body[data-theme='modern'] .recent-blocks-header {
+  padding-left: 0.2rem;
+}
+
+body[data-theme='modern'] .stat-card {
+  position: relative;
+  overflow: hidden;
+  padding: 0.75rem 0.8rem;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(17, 27, 38, 0.96), rgba(12, 20, 28, 0.94));
+}
+
+body[data-theme='modern'] .stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(89, 214, 255, 0.2), rgba(120, 169, 255, 0.7), rgba(89, 214, 255, 0.2));
+}
+
+body[data-theme='modern'] .card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(89, 214, 255, 0.12), rgba(120, 169, 255, 0.08));
+  border: 1px solid rgba(89, 214, 255, 0.18);
+  color: var(--modern-cyan);
+  box-shadow: inset 0 0 18px rgba(89, 214, 255, 0.08);
+}
+
+body[data-theme='modern'] .stat-meta .label {
+  color: var(--modern-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+}
+
+body[data-theme='modern'] .stat-meta .stat-value {
+  color: var(--modern-text);
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+body[data-theme='modern'] .blocks-section,
+body[data-theme='modern'] .analytics-section,
+body[data-theme='modern'] .dashboard-tab-panel {
+  min-height: 100%;
+  padding: 1rem 1rem 0.9rem;
+}
+
+body[data-theme='modern'] .table-header {
+  margin-bottom: 0.8rem;
+}
+
+body[data-theme='modern'] .table-header h3 {
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+body[data-theme='modern'] .health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+body[data-theme='modern'] .health-item {
+  border-radius: 14px;
+  padding: 0.9rem 1rem 0.8rem;
+  min-height: 96px;
+  background: linear-gradient(180deg, rgba(22, 33, 44, 0.84), rgba(15, 22, 30, 0.9));
+}
+
+body[data-theme='modern'] .health-item .label {
+  color: var(--modern-text-soft);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-theme='modern'] .health-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  line-height: 1.2;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+body[data-theme='modern'] .status-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+body[data-theme='modern'] .status-indicator.online {
+  background: rgba(73, 221, 138, 0.12);
+  color: var(--modern-green);
+  box-shadow: 0 0 10px rgba(73, 221, 138, 0.2);
+}
+
+body[data-theme='modern'] .status-indicator.offline {
+  background: rgba(255, 125, 125, 0.12);
+  color: var(--modern-red);
+  box-shadow: 0 0 10px rgba(255, 125, 125, 0.18);
+}
+
+body[data-theme='modern'] .health-status.online {
+  color: var(--modern-green);
+}
+
+body[data-theme='modern'] .health-status.offline {
+  color: var(--modern-red);
+}
+
+body[data-theme='modern'] .health-status[data-state='degraded'],
+body[data-theme='modern'] .health-status.degraded {
+  color: var(--modern-amber);
+}
+
+body[data-theme='modern'] .health-item small {
+  color: var(--modern-text-soft);
+  font-size: 0.7rem;
+}
+
+body[data-theme='modern'] .topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+body[data-theme='modern'] .stratum-info {
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--modern-text-soft);
+}
+
+body[data-theme='modern'] .stratum-info code {
+  background: rgba(89, 214, 255, 0.08);
+  color: var(--modern-cyan);
+  border: 1px solid rgba(89, 214, 255, 0.12);
+}
+
+body[data-theme='modern'] .tab-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+body[data-theme='modern'] .tab-button {
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--modern-text-soft);
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+}
+
+body[data-theme='modern'] .tab-button.active {
+  background: linear-gradient(135deg, rgba(89, 214, 255, 0.12), rgba(120, 169, 255, 0.08));
+  border-color: rgba(89, 214, 255, 0.24);
+  color: var(--modern-text);
+}
+
+body[data-theme='modern'] .analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 0.9rem;
+}
+
+body[data-theme='modern'] .mini-stat {
+  background: linear-gradient(180deg, rgba(19, 29, 40, 0.9), rgba(14, 23, 31, 0.92));
+  border: 1px solid var(--modern-border);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+
+body[data-theme='modern'] .mini-stat .label {
+  color: var(--modern-text-soft);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-theme='modern'] .mini-stat strong {
+  color: var(--modern-text);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+body[data-theme='modern'] .analytics-item {
+  background: rgba(10, 17, 22, 0.8);
+  border-radius: 12px;
+  border-color: rgba(142, 178, 214, 0.1);
+  padding: 0.8rem 0.9rem;
+}
+
+body[data-theme='modern'] .analytics-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+body[data-theme='modern'] .analytics-head span:first-child {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+body[data-theme='modern'] .analytics-meta {
+  color: var(--modern-text-soft);
+  font-size: 0.82rem;
+}
+
+body[data-theme='modern'] .analytics-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+body[data-theme='modern'] .analytics-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--modern-cyan), var(--modern-blue));
+  box-shadow: 0 0 18px rgba(89, 214, 255, 0.35);
+}
+
+body[data-theme='modern'] .status-tag {
+  padding: 0.28rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body[data-theme='modern'] .status-tag.status-active {
+  background: rgba(73, 221, 138, 0.1);
+  color: var(--modern-green);
+  border: 1px solid rgba(73, 221, 138, 0.25);
+}
+
+body[data-theme='modern'] .status-tag.status-disabled {
+  background: rgba(255, 203, 107, 0.08);
+  color: var(--modern-amber);
+  border: 1px solid rgba(255, 203, 107, 0.22);
+}
+
+body[data-theme='modern'] .status-tag.status-banned {
+  background: rgba(255, 125, 125, 0.08);
+  color: var(--modern-red);
+  border: 1px solid rgba(255, 125, 125, 0.2);
+}
+
+body[data-theme='modern'] th {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--modern-text-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-theme='modern'] td {
+  background: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme='modern'] .alert-item,
+body[data-theme='modern'] .activity-item,
+body[data-theme='modern'] .timeline-item {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+body[data-theme='modern'] .alert-item strong,
+body[data-theme='modern'] .activity-item strong {
+  color: var(--modern-text);
+}
+
+body[data-theme='modern'] .alert-item span,
+body[data-theme='modern'] .activity-item span,
+body[data-theme='modern'] .timeline-item {
+  color: var(--modern-text-soft);
+}
+
+@media (max-width: 1200px) {
+  body[data-theme='modern'] .dashboard-container {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-theme='modern'] .sidebar-modern {
+    position: static;
+  }
+
+  body[data-theme='modern'] .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  body[data-theme='modern'] .analytics-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  body[data-theme='modern'] .navbar {
+    padding: 1rem 1rem 1.2rem;
+  }
+
+  body[data-theme='modern'] .topbar-actions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  body[data-theme='modern'] .health-grid,
+  body[data-theme='modern'] .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
