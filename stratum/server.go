@@ -37,16 +37,26 @@ type FoundBlock struct {
 	Symbol    string    `json:"symbol"`
 }
 
+type NotificationChannelStatus struct {
+	Enabled       bool       `json:"enabled"`
+	Configured    bool       `json:"configured"`
+	LastAttemptAt *time.Time `json:"lastAttemptAt,omitempty"`
+	LastResult    string     `json:"lastResult,omitempty"`
+	LastError     string     `json:"lastError,omitempty"`
+}
+
 type StratumServer struct {
-	mu             sync.RWMutex
-	cfg            *config.Config
-	jobManager     *pool.JobManager
-	bitcoinRpc     *bitcoin.BitcoinRpcClient
-	sessions       map[string]*StratumSession
-	sessionCounter int64
-	FoundBlocks    []FoundBlock
-	StatsUpdated   chan struct{}
-	blocksFilePath string
+	mu                 sync.RWMutex
+	notificationMu     sync.RWMutex
+	cfg                *config.Config
+	jobManager         *pool.JobManager
+	bitcoinRpc         *bitcoin.BitcoinRpcClient
+	sessions           map[string]*StratumSession
+	sessionCounter     int64
+	FoundBlocks        []FoundBlock
+	StatsUpdated       chan struct{}
+	blocksFilePath     string
+	notificationStatus map[string]NotificationChannelStatus
 }
 
 func NewStratumServer(cfg *config.Config, jm *pool.JobManager, rpc *bitcoin.BitcoinRpcClient) *StratumServer {
@@ -57,9 +67,63 @@ func NewStratumServer(cfg *config.Config, jm *pool.JobManager, rpc *bitcoin.Bitc
 		sessions:       make(map[string]*StratumSession),
 		StatsUpdated:   make(chan struct{}, 100),
 		blocksFilePath: filepath.Join(".", "data", "found_blocks.json"),
+		notificationStatus: map[string]NotificationChannelStatus{
+			"ntfy": {
+				Enabled:    cfg.EnableNtfy,
+				Configured: strings.TrimSpace(cfg.NtfyServer) != "" && strings.TrimSpace(cfg.NtfyTopic) != "",
+			},
+			"discord": {
+				Enabled:    cfg.EnableDiscord,
+				Configured: strings.TrimSpace(cfg.DiscordWebhookURL) != "",
+			},
+		},
 	}
 	s.loadFoundBlocks()
 	return s
+}
+
+func (s *StratumServer) GetNotificationStatus() map[string]NotificationChannelStatus {
+	s.notificationMu.RLock()
+	defer s.notificationMu.RUnlock()
+
+	statuses := make(map[string]NotificationChannelStatus, len(s.notificationStatus))
+	for channel, status := range s.notificationStatus {
+		statuses[channel] = status
+	}
+	return statuses
+}
+
+func (s *StratumServer) beginNotificationAttempt(channel string) {
+	s.notificationMu.Lock()
+	defer s.notificationMu.Unlock()
+
+	status, ok := s.notificationStatus[channel]
+	if !ok {
+		return
+	}
+	now := time.Now()
+	status.LastAttemptAt = &now
+	status.LastResult = "sending"
+	status.LastError = ""
+	s.notificationStatus[channel] = status
+}
+
+func (s *StratumServer) finishNotificationAttempt(channel string, succeeded bool, message string) {
+	s.notificationMu.Lock()
+	defer s.notificationMu.Unlock()
+
+	status, ok := s.notificationStatus[channel]
+	if !ok {
+		return
+	}
+	if succeeded {
+		status.LastResult = "sent"
+		status.LastError = ""
+	} else {
+		status.LastResult = "failed"
+		status.LastError = message
+	}
+	s.notificationStatus[channel] = status
 }
 
 func (s *StratumServer) loadFoundBlocks() {
@@ -144,147 +208,16 @@ func (s *StratumServer) ResumeSession(sessionID string) bool {
 	return true
 }
 
-func (s *StratumServer) notifyBlockFound(block FoundBlock) {
-	if !s.cfg.EnableNtfy || s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
-		return
-	}
-
-	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
-	if symbol == "" {
-		symbol = strings.TrimSpace(block.Symbol)
-	}
-	if symbol == "" {
-		symbol = "COIN"
-	}
-
-	body := fmt.Sprintf(
-		"FOUND SOLO %s\n%s #%d\nReward %.8f %s\nMiner %s\nWorker %s",
-		symbol,
-		strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork)),
-		block.Height,
-		block.Reward,
-		symbol,
-		block.Miner,
-		block.Worker,
-	)
-
-	endpoint := strings.TrimRight(s.cfg.NtfyServer, "/") + "/" + strings.TrimLeft(s.cfg.NtfyTopic, "/")
-	req, err := http.NewRequest("POST", endpoint, strings.NewReader(body))
-	if err != nil {
-		log.Printf("[ntfy] Failed to create request: %v", err)
-		return
-	}
-
-	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
-	req.Header.Set("Title", fmt.Sprintf("FOUND SOLO %s", symbol))
-	req.Header.Set("Priority", "urgent")
-	req.Header.Set("Tags", "pickaxe,rotating_light")
-	if s.cfg.NtfyUser != "" || s.cfg.NtfyPassword != "" {
-		req.SetBasicAuth(s.cfg.NtfyUser, s.cfg.NtfyPassword)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Printf("[ntfy] Failed to send block notification: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		log.Printf("[ntfy] Notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
-		return
-	}
-
-	log.Printf("[ntfy] Block notification sent to %s", endpoint)
-}
-
-func (s *StratumServer) notifyDiscordBlockFound(block FoundBlock) {
-	if !s.cfg.EnableDiscord {
-		return
-	}
-
-	webhookURL := strings.TrimSpace(s.cfg.DiscordWebhookURL)
-	if webhookURL == "" {
-		return
-	}
-
-	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
-	if symbol == "" {
-		symbol = strings.TrimSpace(block.Symbol)
-	}
-	if symbol == "" {
-		symbol = "COIN"
-	}
-
-	network := strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork))
-	if network == "" {
-		network = "UNKNOWN NETWORK"
-	}
-
-	payload := map[string]interface{}{
-		"content": fmt.Sprintf(
-			"**Block found: %s #%d**\nNetwork: %s\nReward: %.8f %s\nMiner: %s\nWorker: %s\nHash: `%s`",
-			symbol,
-			block.Height,
-			network,
-			block.Reward,
-			symbol,
-			block.Miner,
-			block.Worker,
-			block.Hash,
-		),
-		"allowed_mentions": map[string]interface{}{"parse": []string{}},
-	}
-	if username := strings.TrimSpace(s.cfg.DiscordUsername); username != "" {
-		payload["username"] = username
-	}
-	if avatarURL := strings.TrimSpace(s.cfg.DiscordAvatarURL); avatarURL != "" {
-		payload["avatar_url"] = avatarURL
-	}
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("[Discord] Failed to encode block notification: %v", err)
-		return
-	}
-
-	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		log.Printf("[Discord] Failed to create block notification request: %v", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Printf("[Discord] Failed to send block notification: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		log.Printf("[Discord] Notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
-		return
-	}
-
-	log.Printf("[Discord] Block notification sent")
-}
-
 func (s *StratumServer) isSubmitBlockAccepted(result interface{}, err error) bool {
 	if err != nil {
 		return false
 	}
-
 	if result == nil {
 		return true
 	}
-
-	if resultStr, ok := result.(string); ok {
-		return strings.TrimSpace(resultStr) == ""
+	if resultString, ok := result.(string); ok {
+		return strings.TrimSpace(resultString) == ""
 	}
-
 	return false
 }
 
@@ -296,7 +229,6 @@ func (s *StratumServer) Start() error {
 	}
 
 	log.Printf("[Stratum Go] Server listening on %s", addr)
-
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -306,23 +238,22 @@ func (s *StratumServer) Start() error {
 			go s.handleConnection(conn)
 		}
 	}()
-
 	return nil
 }
 
 func (s *StratumServer) handleConnection(conn net.Conn) {
 	s.mu.Lock()
 	s.sessionCounter++
-	sessionId := fmt.Sprintf("%08x", s.sessionCounter)
+	sessionID := fmt.Sprintf("%08x", s.sessionCounter)
 	extranonce1 := fmt.Sprintf("%08x", s.sessionCounter&0xffffffff)
-	session := NewStratumSession(sessionId, conn, extranonce1, s.cfg.DefaultDiff)
-	s.sessions[sessionId] = session
+	session := NewStratumSession(sessionID, conn, extranonce1, s.cfg.DefaultDiff)
+	s.sessions[sessionID] = session
 	s.mu.Unlock()
 
 	defer func() {
 		conn.Close()
 		s.mu.Lock()
-		delete(s.sessions, sessionId)
+		delete(s.sessions, sessionID)
 		s.mu.Unlock()
 		s.notifyStats()
 	}()
@@ -331,11 +262,10 @@ func (s *StratumServer) handleConnection(conn net.Conn) {
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if len(line) > 0 {
+		if line != "" {
 			s.handleMessage(session, line)
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		log.Printf("[Stratum] Session %s scanner error: %v", session.ID, err)
 	}
@@ -403,6 +333,173 @@ func (s *StratumServer) handleConfigure(session *StratumSession, id interface{},
 	result["version-rolling"] = true
 	result["version-rolling.mask"] = session.VersionRollingMask
 	s.sendResponse(session, id, result, nil)
+}
+
+func (s *StratumServer) notifyBlockFound(block FoundBlock) {
+	if !s.cfg.EnableNtfy || s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
+		return
+	}
+
+	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
+	if symbol == "" {
+		symbol = strings.TrimSpace(block.Symbol)
+	}
+	if symbol == "" {
+		symbol = "COIN"
+	}
+
+	body := fmt.Sprintf(
+		"FOUND SOLO %s\n%s #%d\nReward %.8f %s\nMiner %s\nWorker %s",
+		symbol,
+		strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork)),
+		block.Height,
+		block.Reward,
+		symbol,
+		block.Miner,
+		block.Worker,
+	)
+	if err := s.sendNtfyNotification(fmt.Sprintf("FOUND SOLO %s", symbol), body); err != nil {
+		log.Printf("[ntfy] Failed to send block notification: %v", err)
+	}
+}
+
+func (s *StratumServer) sendNtfyNotification(title, body string) error {
+	if !s.cfg.EnableNtfy {
+		return fmt.Errorf("ntfy is disabled")
+	}
+	if strings.TrimSpace(s.cfg.NtfyServer) == "" || strings.TrimSpace(s.cfg.NtfyTopic) == "" {
+		return fmt.Errorf("ntfy server or topic is not configured")
+	}
+	s.beginNotificationAttempt("ntfy")
+
+	endpoint := strings.TrimRight(s.cfg.NtfyServer, "/") + "/" + strings.TrimLeft(s.cfg.NtfyTopic, "/")
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(body))
+	if err != nil {
+		s.finishNotificationAttempt("ntfy", false, "Invalid request configuration")
+		return fmt.Errorf("invalid ntfy request")
+	}
+	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("Title", title)
+	req.Header.Set("Priority", "urgent")
+	req.Header.Set("Tags", "pickaxe,rotating_light")
+	if s.cfg.NtfyUser != "" || s.cfg.NtfyPassword != "" {
+		req.SetBasicAuth(s.cfg.NtfyUser, s.cfg.NtfyPassword)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		s.finishNotificationAttempt("ntfy", false, "HTTP request failed")
+		return fmt.Errorf("ntfy HTTP request failed")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		s.finishNotificationAttempt("ntfy", false, resp.Status)
+		log.Printf("[ntfy] Notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
+		return fmt.Errorf("ntfy rejected the notification: %s", resp.Status)
+	}
+
+	s.finishNotificationAttempt("ntfy", true, "")
+	log.Printf("[ntfy] Notification sent to %s", endpoint)
+	return nil
+}
+
+func (s *StratumServer) notifyDiscordBlockFound(block FoundBlock) {
+	if !s.cfg.EnableDiscord || strings.TrimSpace(s.cfg.DiscordWebhookURL) == "" {
+		return
+	}
+
+	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
+	if symbol == "" {
+		symbol = strings.TrimSpace(block.Symbol)
+	}
+	if symbol == "" {
+		symbol = "COIN"
+	}
+	network := strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork))
+	if network == "" {
+		network = "UNKNOWN NETWORK"
+	}
+	content := fmt.Sprintf(
+		"**Block found: %s #%d**\nNetwork: %s\nReward: %.8f %s\nMiner: %s\nWorker: %s\nHash: `%s`",
+		symbol,
+		block.Height,
+		network,
+		block.Reward,
+		symbol,
+		block.Miner,
+		block.Worker,
+		block.Hash,
+	)
+	if err := s.sendDiscordNotification(content); err != nil {
+		log.Printf("[Discord] Failed to send block notification: %v", err)
+	}
+}
+
+func (s *StratumServer) sendDiscordNotification(content string) error {
+	if !s.cfg.EnableDiscord {
+		return fmt.Errorf("Discord is disabled")
+	}
+	webhookURL := strings.TrimSpace(s.cfg.DiscordWebhookURL)
+	if webhookURL == "" {
+		return fmt.Errorf("Discord webhook URL is not configured")
+	}
+	s.beginNotificationAttempt("discord")
+
+	payload := map[string]interface{}{
+		"content":          content,
+		"allowed_mentions": map[string]interface{}{"parse": []string{}},
+	}
+	if username := strings.TrimSpace(s.cfg.DiscordUsername); username != "" {
+		payload["username"] = username
+	}
+	if avatarURL := strings.TrimSpace(s.cfg.DiscordAvatarURL); avatarURL != "" {
+		payload["avatar_url"] = avatarURL
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		s.finishNotificationAttempt("discord", false, "Could not encode request")
+		return fmt.Errorf("could not encode Discord request")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		s.finishNotificationAttempt("discord", false, "Invalid webhook configuration")
+		return fmt.Errorf("invalid Discord webhook configuration")
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		s.finishNotificationAttempt("discord", false, "HTTP request failed")
+		return fmt.Errorf("Discord HTTP request failed")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		s.finishNotificationAttempt("discord", false, resp.Status)
+		log.Printf("[Discord] Notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
+		return fmt.Errorf("Discord rejected the notification: %s", resp.Status)
+	}
+
+	s.finishNotificationAttempt("discord", true, "")
+	log.Printf("[Discord] Notification sent")
+	return nil
+}
+
+func (s *StratumServer) SendTestNotification(channel string) error {
+	switch channel {
+	case "ntfy":
+		return s.sendNtfyNotification("ntpool test", "Test notification from ntpool dashboard.")
+	case "discord":
+		return s.sendDiscordNotification("**Test notification**\nntpool alert delivery is configured.")
+	default:
+		return fmt.Errorf("unsupported notification channel")
+	}
 }
 
 func (s *StratumServer) handleSubscribe(session *StratumSession, id interface{}, params []interface{}) {

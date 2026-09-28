@@ -3,11 +3,14 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,17 +24,29 @@ import (
 	"ntpool/stratum"
 )
 
+const freiexchangeAURBTCOrderBookURL = "https://api.freiexchange.com/public/orderbook/AUR/BTC"
+
+type AURMarketQuote struct {
+	PriceBTC  string     `json:"priceBTC,omitempty"`
+	PriceSats int64      `json:"priceSats,omitempty"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	LastError string     `json:"lastError,omitempty"`
+}
+
 type WebDashboardServer struct {
-	cfg           *config.Config
-	stratumServer *stratum.StratumServer
-	jobManager    *pool.JobManager
-	bitcoinRpc    *bitcoin.BitcoinRpcClient
-	zmqSub        *bitcoin.ZmqBlockSubscriber
-	upgrader      websocket.Upgrader
-	clients       map[*websocket.Conn]bool
-	healthHistory []map[string]interface{}
-	historyMu     sync.Mutex
-	mu            sync.Mutex
+	cfg              *config.Config
+	stratumServer    *stratum.StratumServer
+	jobManager       *pool.JobManager
+	bitcoinRpc       *bitcoin.BitcoinRpcClient
+	zmqSub           *bitcoin.ZmqBlockSubscriber
+	upgrader         websocket.Upgrader
+	clients          map[*websocket.Conn]bool
+	healthHistory    []map[string]interface{}
+	historyMu        sync.Mutex
+	mu               sync.Mutex
+	marketPriceMu    sync.RWMutex
+	aurMarketQuote   AURMarketQuote
+	marketHTTPClient *http.Client
 }
 
 func buildHealthTimelineEntry(rpcHealthy, zmqHealthy bool, connectedWorkers, alertCount int) map[string]interface{} {
@@ -83,12 +98,13 @@ func (w *WebDashboardServer) recentHealthHistory() []map[string]interface{} {
 
 func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumServer, jm *pool.JobManager, rpc *bitcoin.BitcoinRpcClient, zmq *bitcoin.ZmqBlockSubscriber) *WebDashboardServer {
 	return &WebDashboardServer{
-		cfg:           cfg,
-		stratumServer: stratumServer,
-		jobManager:    jm,
-		bitcoinRpc:    rpc,
-		zmqSub:        zmq,
-		clients:       make(map[*websocket.Conn]bool),
+		cfg:              cfg,
+		stratumServer:    stratumServer,
+		jobManager:       jm,
+		bitcoinRpc:       rpc,
+		zmqSub:           zmq,
+		clients:          make(map[*websocket.Conn]bool),
+		marketHTTPClient: &http.Client{Timeout: 10 * time.Second},
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				origin := r.Header.Get("Origin")
@@ -104,6 +120,77 @@ func NewWebDashboardServer(cfg *config.Config, stratumServer *stratum.StratumSer
 				return strings.EqualFold(u.Host, r.Host)
 			},
 		},
+	}
+}
+
+func (w *WebDashboardServer) currentAURMarketQuote() AURMarketQuote {
+	w.marketPriceMu.RLock()
+	defer w.marketPriceMu.RUnlock()
+	return w.aurMarketQuote
+}
+
+func (w *WebDashboardServer) refreshAURMarketQuote() {
+	req, err := http.NewRequest(http.MethodGet, freiexchangeAURBTCOrderBookURL, nil)
+	if err != nil {
+		w.setAURMarketQuoteError(fmt.Errorf("invalid Freiexchange request"))
+		return
+	}
+
+	resp, err := w.marketHTTPClient.Do(req)
+	if err != nil {
+		w.setAURMarketQuoteError(fmt.Errorf("could not reach Freiexchange"))
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		w.setAURMarketQuoteError(fmt.Errorf("Freiexchange returned %s", resp.Status))
+		return
+	}
+
+	var orderBook struct {
+		Buy []struct {
+			Price string `json:"price"`
+		} `json:"BUY"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&orderBook); err != nil {
+		w.setAURMarketQuoteError(fmt.Errorf("invalid Freiexchange response"))
+		return
+	}
+	if len(orderBook.Buy) == 0 {
+		w.setAURMarketQuoteError(fmt.Errorf("Freiexchange has no AUR buy orders"))
+		return
+	}
+
+	priceText := strings.TrimSpace(orderBook.Buy[0].Price)
+	price, err := strconv.ParseFloat(priceText, 64)
+	if err != nil || price <= 0 || math.IsNaN(price) || math.IsInf(price, 0) {
+		w.setAURMarketQuoteError(fmt.Errorf("invalid AUR/BTC buy price"))
+		return
+	}
+
+	now := time.Now()
+	w.marketPriceMu.Lock()
+	w.aurMarketQuote = AURMarketQuote{
+		PriceBTC:  priceText,
+		PriceSats: int64(math.Round(price * 1e8)),
+		UpdatedAt: &now,
+	}
+	w.marketPriceMu.Unlock()
+}
+
+func (w *WebDashboardServer) setAURMarketQuoteError(err error) {
+	w.marketPriceMu.Lock()
+	w.aurMarketQuote.LastError = err.Error()
+	w.marketPriceMu.Unlock()
+}
+
+func (w *WebDashboardServer) runAURMarketQuotePoller() {
+	w.refreshAURMarketQuote()
+
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		w.refreshAURMarketQuote()
 	}
 }
 
@@ -260,23 +347,25 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 	w.recordHealthSnapshot(healthEntry)
 
 	return map[string]interface{}{
-		"poolName":          w.cfg.PoolName,
-		"stratumPort":       w.cfg.StratumPort,
-		"network":           w.cfg.RpcNetwork,
-		"coinSymbol":        w.cfg.CoinSymbol,
-		"blockHeight":       blockHeight,
-		"networkDifficulty": netDiff,
-		"activeMiners":      len(uniqueMiners),
-		"connectedWorkers":  len(sessions),
-		"poolHashrate1m":    poolHashrate1m,
-		"poolHashrate5m":    poolHashrate5m,
-		"blocksFound":       w.stratumServer.FoundBlocks,
-		"workers":           workersList,
-		"rpcHealth":         rpcHealth,
-		"zmqHealth":         zmqHealth,
-		"alerts":            alerts,
-		"activityLog":       activityLog,
-		"healthTimeline":    w.recentHealthHistory(),
+		"poolName":           w.cfg.PoolName,
+		"stratumPort":        w.cfg.StratumPort,
+		"network":            w.cfg.RpcNetwork,
+		"coinSymbol":         w.cfg.CoinSymbol,
+		"blockHeight":        blockHeight,
+		"networkDifficulty":  netDiff,
+		"activeMiners":       len(uniqueMiners),
+		"connectedWorkers":   len(sessions),
+		"poolHashrate1m":     poolHashrate1m,
+		"poolHashrate5m":     poolHashrate5m,
+		"blocksFound":        w.stratumServer.FoundBlocks,
+		"workers":            workersList,
+		"rpcHealth":          rpcHealth,
+		"zmqHealth":          zmqHealth,
+		"notificationStatus": w.stratumServer.GetNotificationStatus(),
+		"aurMarketQuote":     w.currentAURMarketQuote(),
+		"alerts":             alerts,
+		"activityLog":        activityLog,
+		"healthTimeline":     w.recentHealthHistory(),
 		"poolHealth": map[string]interface{}{
 			"overall": func() string {
 				if rpcHealth["healthy"] == true && len(alerts) == 0 {
@@ -311,6 +400,8 @@ func (w *WebDashboardServer) startBroadcaster() {
 }
 
 func (w *WebDashboardServer) Start() error {
+	go w.runAURMarketQuotePoller()
+
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./public")))
 
@@ -355,6 +446,36 @@ func (w *WebDashboardServer) Start() error {
 
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(map[string]interface{}{"ok": true, "action": payload.Action})
+	})
+
+	mux.HandleFunc("/api/admin/notification-test", func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var payload struct {
+			Channel string `json:"channel"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(rw, "invalid payload", http.StatusBadRequest)
+			return
+		}
+
+		channel := strings.ToLower(strings.TrimSpace(payload.Channel))
+		if channel != "ntfy" && channel != "discord" {
+			http.Error(rw, "unsupported notification channel", http.StatusBadRequest)
+			return
+		}
+		if err := w.stratumServer.SendTestNotification(channel); err != nil {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(rw).Encode(map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(map[string]interface{}{"ok": true})
 	})
 
 	mux.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {

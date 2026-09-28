@@ -50,6 +50,18 @@
           <strong id="pool-health" class="status-offline">Degraded</strong>
           <small>Operational summary</small>
         </div>
+        <div class="health-item sidebar-health-item">
+          <span class="label">ntfy Notifications</span>
+          <strong id="ntfy-alert-status" class="health-status neutral">Loading</strong>
+          <small id="ntfy-alert-detail">Checking configuration</small>
+          <button class="alert-test-button" type="button" data-alert-test="ntfy">Send test</button>
+        </div>
+        <div class="health-item sidebar-health-item">
+          <span class="label">Discord Notifications</span>
+          <strong id="discord-alert-status" class="health-status neutral">Loading</strong>
+          <small id="discord-alert-detail">Checking configuration</small>
+          <button class="alert-test-button" type="button" data-alert-test="discord">Send test</button>
+        </div>
       </div>
     </aside>
 
@@ -93,6 +105,16 @@
           <div class="stat-meta">
             <span class="label">Blocks Mined</span>
             <h2 id="blocks-count" class="stat-value">0</h2>
+          </div>
+        </div>
+
+        <div class="card stat-card">
+          <div class="card-icon market-icon">AUR</div>
+          <div class="stat-meta">
+            <span class="label">AUR / BTC (BUY)</span>
+            <h2 id="aur-price-sats" class="stat-value">—</h2>
+            <small id="aur-price-btc" class="stat-detail">1 AUR = — BTC</small>
+            <small id="aur-price-updated" class="stat-detail">Waiting for Freiexchange quote</small>
           </div>
         </div>
       </section>

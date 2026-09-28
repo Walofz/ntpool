@@ -178,6 +178,66 @@ function updateDashboard(data) {
     element.innerHTML = `<span class="status-indicator ${tone}">${online ? '●' : '■'}</span><span>${label}</span>`;
   };
 
+  const renderNotificationStatus = (channel, status = {}) => {
+    const statusElement = document.getElementById(`${channel}-alert-status`);
+    const detailElement = document.getElementById(`${channel}-alert-detail`);
+    const testButton = document.querySelector(`[data-alert-test="${channel}"]`);
+    if (!statusElement || !detailElement) return;
+
+    let label = 'Ready';
+    let tone = 'neutral';
+    let detail = 'Configured; no delivery attempt yet';
+
+    if (!status.enabled) {
+      label = 'Disabled';
+      detail = 'Enable this channel in the pool configuration';
+    } else if (!status.configured) {
+      label = 'Setup required';
+      tone = 'degraded';
+      detail = channel === 'discord' ? 'Webhook URL is missing' : 'Server URL or topic is missing';
+    } else if (status.lastResult === 'sending') {
+      label = 'Sending';
+      tone = 'degraded';
+      detail = 'Notification delivery is in progress';
+    } else if (status.lastResult === 'sent') {
+      label = 'Sent';
+      tone = 'online';
+      detail = `Last delivery ${formatTimeAgo(status.lastAttemptAt)}`;
+    } else if (status.lastResult === 'failed') {
+      label = 'Failed';
+      tone = 'offline';
+      detail = `${status.lastError || 'Delivery failed'} • ${formatTimeAgo(status.lastAttemptAt)}`;
+    }
+
+    statusElement.className = `health-status ${tone}`;
+    statusElement.textContent = label;
+    detailElement.textContent = detail;
+    if (testButton) {
+      testButton.disabled = !status.enabled || !status.configured || status.lastResult === 'sending';
+    }
+  };
+
+  const renderAURMarketQuote = (quote = {}) => {
+    const satsElement = document.getElementById('aur-price-sats');
+    const btcElement = document.getElementById('aur-price-btc');
+    const updatedElement = document.getElementById('aur-price-updated');
+    if (!satsElement || !btcElement || !updatedElement) return;
+
+    if (!quote.priceBTC) {
+      satsElement.textContent = 'Unavailable';
+      btcElement.textContent = quote.lastError || 'Waiting for Freiexchange quote';
+      updatedElement.textContent = 'Source: Freiexchange';
+      return;
+    }
+
+    satsElement.textContent = `${quote.priceSats} sats`;
+    btcElement.textContent = `1 AUR = ${quote.priceBTC} BTC`;
+    const updated = quote.updatedAt ? `Updated ${formatTimeAgo(quote.updatedAt)}` : 'Update time unavailable';
+    updatedElement.textContent = quote.lastError
+      ? `${updated} • Refresh failed: ${quote.lastError}`
+      : `${updated} • Freiexchange`;
+  };
+
   setText('pool-hashrate', displayHashrate('pool-hashrate', data.poolHashrate1m || 0));
   setText('connected-workers', data.connectedWorkers || 0);
   setText('block-height', data.blockHeight ? `#${data.blockHeight}` : '0');
@@ -188,6 +248,7 @@ function updateDashboard(data) {
   const rpcHealth = data.rpcHealth || { healthy: false, status: 'offline', lastError: '' };
   const zmqHealth = data.zmqHealth || { healthy: false, status: 'offline', lastError: '' };
   const poolHealth = data.poolHealth || { overall: 'degraded' };
+  const notificationStatus = data.notificationStatus || {};
   const alerts = Array.isArray(data.alerts) ? data.alerts : [];
   const activityLog = Array.isArray(data.activityLog) ? data.activityLog : [];
   const healthTimeline = Array.isArray(data.healthTimeline) ? data.healthTimeline : [];
@@ -207,6 +268,10 @@ function updateDashboard(data) {
   const poolState = poolHealth.overall === 'online' ? 'online' : (poolHealth.overall === 'degraded' ? 'degraded' : 'offline');
   renderStatusBadge(poolEl, poolState === 'online', poolState === 'degraded' ? 'Degraded' : 'Offline');
   poolEl.setAttribute('data-state', poolState);
+
+  renderNotificationStatus('ntfy', notificationStatus.ntfy);
+  renderNotificationStatus('discord', notificationStatus.discord);
+  renderAURMarketQuote(data.aurMarketQuote);
 
   const alertsList = document.getElementById('alerts-list');
   if (alertsList) {
@@ -484,6 +549,37 @@ document.querySelectorAll('[data-worker-action]').forEach((button) => {
     const sessionId = modal ? modal.dataset.sessionId : null;
     if (sessionId) {
       handleWorkerAction(sessionId, button.dataset.workerAction);
+    }
+  });
+});
+
+document.querySelectorAll('[data-alert-test]').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const channel = button.dataset.alertTest;
+    button.disabled = true;
+    button.textContent = 'Sending...';
+
+    try {
+      const response = await fetch('/api/admin/notification-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || 'Test notification failed');
+      }
+    } catch (error) {
+      const statusElement = document.getElementById(`${channel}-alert-status`);
+      const detailElement = document.getElementById(`${channel}-alert-detail`);
+      if (statusElement) {
+        statusElement.className = 'health-status offline';
+        statusElement.textContent = 'Failed';
+      }
+      if (detailElement) detailElement.textContent = error.message;
+    } finally {
+      button.textContent = 'Send test';
+      await loadInitialStats();
     }
   });
 });
