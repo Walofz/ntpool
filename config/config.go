@@ -27,10 +27,13 @@ type Config struct {
 	PoolFeePercent      float64
 	PoolFeeAddress      string
 	WalletAddress       string
+	EnableNtfy          bool
 	NtfyServer          string
 	NtfyTopic           string
 	NtfyUser            string
 	NtfyPassword        string
+	EnableDiscord       bool
+	DiscordWebhookURL   string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -90,9 +93,12 @@ func LoadConfig() *Config {
 		PoolFeePercent:      getEnvFloat("POOL_FEE_PERCENT", 0.0),
 		PoolFeeAddress:      getEnv("POOL_FEE_ADDRESS", ""),
 		WalletAddress:       getEnv("WALLET_ADDRESS", "AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr"),
+		EnableNtfy:          getEnvBool("ENABLE_NTFY", false),
 		NtfyServer:          getEnv("NTFY_SERVER", "http://192.168.1.250:18080"),
 		NtfyTopic:           getEnv("NTFY_TOPIC", "ntpool-blocks"),
 		NtfyUser:            getEnv("NTFY_USER", "user"),
 		NtfyPassword:        getEnv("NTFY_PASSWORD", "pass"),
+		EnableDiscord:       getEnvBool("ENABLE_DISCORD", false),
+		DiscordWebhookURL:   getEnv("DISCORD_WEBHOOK_URL", ""),
 	}
 }

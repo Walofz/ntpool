@@ -109,7 +109,7 @@ func (s *StratumServer) resetAllBestShares() {
 }
 
 func (s *StratumServer) notifyBlockFound(block FoundBlock) {
-	if s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
+	if !s.cfg.EnableNtfy || s.cfg.NtfyServer == "" || s.cfg.NtfyTopic == "" {
 		return
 	}
 
@@ -161,6 +161,73 @@ func (s *StratumServer) notifyBlockFound(block FoundBlock) {
 	}
 
 	log.Printf("[ntfy] Block notification sent to %s", endpoint)
+}
+
+func (s *StratumServer) notifyDiscordBlockFound(block FoundBlock) {
+	if !s.cfg.EnableDiscord {
+		return
+	}
+
+	webhookURL := strings.TrimSpace(s.cfg.DiscordWebhookURL)
+	if webhookURL == "" {
+		return
+	}
+
+	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
+	if symbol == "" {
+		symbol = strings.TrimSpace(block.Symbol)
+	}
+	if symbol == "" {
+		symbol = "COIN"
+	}
+
+	network := strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork))
+	if network == "" {
+		network = "UNKNOWN NETWORK"
+	}
+
+	payload := map[string]interface{}{
+		"content": fmt.Sprintf(
+			"**Block found: %s #%d**\nNetwork: %s\nReward: %.8f %s\nMiner: %s\nWorker: %s\nHash: `%s`",
+			symbol,
+			block.Height,
+			network,
+			block.Reward,
+			symbol,
+			block.Miner,
+			block.Worker,
+			block.Hash,
+		),
+		"allowed_mentions": map[string]interface{}{"parse": []string{}},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[Discord] Failed to encode block notification: %v", err)
+		return
+	}
+
+	req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		log.Printf("[Discord] Failed to create block notification request: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[Discord] Failed to send block notification: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		log.Printf("[Discord] Notification rejected: %s %s", resp.Status, strings.TrimSpace(string(respBody)))
+		return
+	}
+
+	log.Printf("[Discord] Block notification sent")
 }
 
 func (s *StratumServer) isSubmitBlockAccepted(result interface{}, err error) bool {
@@ -476,6 +543,7 @@ primaryLoop:
 				s.resetAllBestShares()
 				s.notifyStats()
 				go s.notifyBlockFound(blockRecord)
+				go s.notifyDiscordBlockFound(blockRecord)
 			}
 		}
 	}

@@ -1,6 +1,6 @@
 # ntpool
 
-High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt AsicBoost support, a LAN-only realtime web dashboard, and optional `ntfy` block-found notifications.
+High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt AsicBoost support, a LAN-only realtime web dashboard, and optional `ntfy` and Discord block-found notifications.
 
 ## Overview
 
@@ -14,6 +14,7 @@ High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt 
 - Web dashboard แบบ realtime ผ่าน WebSocket
 - บันทึก blocks found ลง `data/found_blocks.json`
 - แจ้งเตือนผ่าน `ntfy` เมื่อ `submitblock` สำเร็จ
+- แจ้งเตือนผ่าน Discord webhook เมื่อ `submitblock` สำเร็จ
 - รีเซ็ต `Best Share` ของทุก session เป็น `0` หลังขุดพบบล็อกสำเร็จ
 
 ## Project Structure
@@ -88,10 +89,13 @@ cp .env.example .env
 | `POOL_FEE_PERCENT` | ค่า fee ของ pool | `0.0` |
 | `POOL_FEE_ADDRESS` | ปลายทางสำหรับ fee ของ pool | `""` |
 | `WALLET_ADDRESS` | address สำหรับรับ coinbase payout | `AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr` |
+| `ENABLE_NTFY` | เปิดการแจ้งเตือนบล็อกผ่าน ntfy หรือไม่ | `false` |
 | `NTFY_SERVER` | URL ของ ntfy server | `http://192.168.1.250:18080` |
 | `NTFY_TOPIC` | topic ปลายทางบน ntfy | `ntpool-blocks` |
 | `NTFY_USER` | username สำหรับ Basic Auth ของ ntfy | `user` |
 | `NTFY_PASSWORD` | password สำหรับ Basic Auth ของ ntfy | `pass` |
+| `ENABLE_DISCORD` | เปิดการแจ้งเตือนบล็อกผ่าน Discord หรือไม่ | `false` |
+| `DISCORD_WEBHOOK_URL` | Discord webhook URL สำหรับแจ้งเตือนเมื่อพบบล็อก | `""` |
 
 ## Running Locally
 
@@ -137,7 +141,7 @@ docker compose down
 - Stratum server ฟังที่ `0.0.0.0:STRATUM_PORT`
 - Web dashboard ฟังที่ `0.0.0.0:WEB_PORT` แต่มี middleware จำกัดการเข้าถึงเฉพาะ loopback / private LAN
 - Dashboard ใช้ WebSocket เพื่อ push stats แบบ realtime
-- เมื่อ `submitblock` สำเร็จ ระบบจะส่ง `ntfy` notification และ reset best share ของทุก session
+- เมื่อ `submitblock` สำเร็จ ระบบจะส่งการแจ้งเตือนตาม `ENABLE_NTFY` และ `ENABLE_DISCORD` (Discord ต้องตั้ง webhook URL ด้วย) และ reset best share ของทุก session
 - รายการ blocks found ถูกเก็บไว้ใน `data/found_blocks.json`
 
 ## Connecting Miners

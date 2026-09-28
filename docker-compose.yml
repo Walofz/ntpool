@@ -32,6 +32,13 @@ services:
       - POOL_FEE_PERCENT=${POOL_FEE_PERCENT:-0.0}
       - POOL_FEE_ADDRESS=${POOL_FEE_ADDRESS:-}
       - WALLET_ADDRESS=${WALLET_ADDRESS:-AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr}
+      - ENABLE_NTFY=${ENABLE_NTFY:-false}
+      - NTFY_SERVER=${NTFY_SERVER:-http://192.168.1.250:18080}
+      - NTFY_TOPIC=${NTFY_TOPIC:-ntpool-blocks}
+      - NTFY_USER=${NTFY_USER:-user}
+      - NTFY_PASSWORD=${NTFY_PASSWORD:-pass}
+      - ENABLE_DISCORD=${ENABLE_DISCORD:-false}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
     volumes:
       - ./data:/app/data
     # Uncomment if connecting to Bitcoin Core running on the host machine
