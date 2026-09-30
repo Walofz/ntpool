@@ -3,6 +3,7 @@ package stratum
 import (
 	"bufio"
 	"bytes"
+	crand "crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -411,34 +412,47 @@ func (s *StratumServer) notifyDiscordBlockFound(block FoundBlock) {
 		return
 	}
 
-	symbol := strings.TrimSpace(s.cfg.CoinSymbol)
+	if err := s.sendDiscordNotification(buildDiscordBlockEmbed(block, s.cfg.CoinSymbol)); err != nil {
+		log.Printf("[Discord] Failed to send block notification: %v", err)
+	}
+}
+
+func buildDiscordBlockEmbed(block FoundBlock, configuredSymbol string) map[string]interface{} {
+	symbol := strings.TrimSpace(configuredSymbol)
 	if symbol == "" {
 		symbol = strings.TrimSpace(block.Symbol)
 	}
 	if symbol == "" {
 		symbol = "COIN"
 	}
-	network := strings.ToUpper(strings.TrimSpace(s.cfg.RpcNetwork))
-	if network == "" {
-		network = "UNKNOWN NETWORK"
+	miner := strings.TrimSpace(block.Miner)
+	if miner == "" {
+		miner = "Unknown miner"
+	} else if len(miner) > 17 {
+		miner = miner[:8] + "..." + miner[len(miner)-6:]
 	}
-	content := fmt.Sprintf(
-		"**Block found: %s #%d**\nNetwork: %s\nReward: %.8f %s\nMiner: %s\nWorker: %s\nHash: `%s`",
-		symbol,
-		block.Height,
-		network,
-		block.Reward,
-		symbol,
-		block.Miner,
-		block.Worker,
-		block.Hash,
-	)
-	if err := s.sendDiscordNotification(content); err != nil {
-		log.Printf("[Discord] Failed to send block notification: %v", err)
+	worker := strings.TrimSpace(block.Worker)
+	if worker == "" {
+		worker = "Unknown worker"
 	}
+	hash := strings.TrimSpace(block.Hash)
+	if hash == "" {
+		hash = "Unknown hash"
+	}
+	embed := map[string]interface{}{
+		"title": fmt.Sprintf("Block found: %s #%d", symbol, block.Height),
+		"color": 0x2ECC71,
+		"fields": []map[string]interface{}{
+			{"name": "Worker", "value": worker, "inline": true},
+			{"name": "Miner", "value": miner, "inline": true},
+			{"name": "Reward", "value": fmt.Sprintf("%.5f %s", block.Reward, symbol), "inline": true},
+			{"name": "Hash", "value": "`" + hash + "`", "inline": false},
+		},
+	}
+	return embed
 }
 
-func (s *StratumServer) sendDiscordNotification(content string) error {
+func (s *StratumServer) sendDiscordNotification(embed map[string]interface{}) error {
 	if !s.cfg.EnableDiscord {
 		return fmt.Errorf("Discord is disabled")
 	}
@@ -449,7 +463,7 @@ func (s *StratumServer) sendDiscordNotification(content string) error {
 	s.beginNotificationAttempt("discord")
 
 	payload := map[string]interface{}{
-		"content":          content,
+		"embeds":           []map[string]interface{}{embed},
 		"allowed_mentions": map[string]interface{}{"parse": []string{}},
 	}
 	if username := strings.TrimSpace(s.cfg.DiscordUsername); username != "" {
@@ -496,10 +510,38 @@ func (s *StratumServer) SendTestNotification(channel string) error {
 	case "ntfy":
 		return s.sendNtfyNotification("ntpool test", "Test notification from ntpool dashboard.")
 	case "discord":
-		return s.sendDiscordNotification("**Test notification**\nntpool alert delivery is configured.")
+		block, err := newDiscordTestBlock(s.cfg.CoinSymbol)
+		if err != nil {
+			return fmt.Errorf("could not generate Discord test block: %w", err)
+		}
+		return s.sendDiscordNotification(buildDiscordBlockEmbed(block, s.cfg.CoinSymbol))
 	default:
 		return fmt.Errorf("unsupported notification channel")
 	}
+}
+
+func newDiscordTestBlock(symbol string) (FoundBlock, error) {
+	randomData := make([]byte, 73)
+	if _, err := crand.Read(randomData); err != nil {
+		return FoundBlock{}, err
+	}
+
+	const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	minerAddress := make([]byte, 34)
+	minerAddress[0] = '1'
+	for index, value := range randomData[40:] {
+		minerAddress[index+1] = base58Alphabet[int(value)%len(base58Alphabet)]
+	}
+
+	feeSats := binary.LittleEndian.Uint32(randomData[36:40]) % 5001
+	return FoundBlock{
+		Height: 999999,
+		Hash:   hex.EncodeToString(randomData[:32]),
+		Miner:  string(minerAddress),
+		Worker: "S19-" + strings.ToUpper(hex.EncodeToString(randomData[32:36])),
+		Reward: 3.125 + float64(feeSats)/100000,
+		Symbol: symbol,
+	}, nil
 }
 
 func (s *StratumServer) handleSubscribe(session *StratumSession, id interface{}, params []interface{}) {
