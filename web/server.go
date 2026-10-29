@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,6 +50,8 @@ type WebDashboardServer struct {
 	marketPriceMu    sync.RWMutex
 	marketQuote      MarketQuote
 	marketHTTPClient *http.Client
+	serverMu         sync.Mutex
+	httpServer       *http.Server
 }
 
 func buildHealthTimelineEntry(rpcHealthy, zmqHealthy bool, connectedWorkers, alertCount int) map[string]interface{} {
@@ -266,7 +269,7 @@ func lanOnly(next http.Handler) http.Handler {
 }
 
 func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
-	sessions := w.stratumServer.GetActiveSessions()
+	sessions := w.stratumServer.GetSessionSnapshots()
 	currentJob := w.jobManager.GetCurrentJob()
 
 	uniqueMiners := make(map[string]bool)
@@ -277,26 +280,24 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 
 	for _, s := range sessions {
 		uniqueMiners[s.MinerAddress] = true
-		h1m := s.GetHashrate(60)
-		h5m := s.GetHashrate(300)
 		uptimeSeconds := int64(time.Since(s.ConnectedAt).Seconds())
 
-		poolHashrate1m += h1m
-		poolHashrate5m += h5m
+		poolHashrate1m += s.Hashrate1m
+		poolHashrate5m += s.Hashrate5m
 
 		workersList = append(workersList, map[string]interface{}{
 			"sessionId":      s.ID,
 			"address":        s.MinerAddress,
 			"workerName":     s.WorkerName,
 			"difficulty":     s.CurrentDiff,
-			"hashrate1m":     h1m,
-			"hashrate5m":     h5m,
+			"hashrate1m":     s.Hashrate1m,
+			"hashrate5m":     s.Hashrate5m,
 			"asicboost":      s.VersionRollingEnabled,
 			"bestShareDiff":  s.BestShareDiff,
 			"acceptedShares": s.AcceptedShares,
 			"rejectedShares": s.RejectedShares,
 			"uptimeSeconds":  uptimeSeconds,
-			"status":         s.GetSessionStatus(),
+			"status":         s.Status,
 			"disabledReason": s.DisabledReason,
 			"bannedReason":   s.BannedReason,
 		})
@@ -572,6 +573,35 @@ func (w *WebDashboardServer) Start() error {
 	go w.startBroadcaster()
 
 	addr := fmt.Sprintf(":%d", w.cfg.WebPort)
+	srv := &http.Server{Addr: addr, Handler: lanOnly(mux)}
+
+	w.serverMu.Lock()
+	w.httpServer = srv
+	w.serverMu.Unlock()
+
 	log.Printf("[Web Dashboard Go] Server running on LAN at http://<LAN_IP>:%d", w.cfg.WebPort)
-	return http.ListenAndServe(addr, lanOnly(mux))
+	return srv.ListenAndServe()
+}
+
+// Stop shuts the dashboard HTTP server and its websocket clients down.
+func (w *WebDashboardServer) Stop() {
+	w.serverMu.Lock()
+	srv := w.httpServer
+	w.httpServer = nil
+	w.serverMu.Unlock()
+
+	if srv != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("[Web Dashboard Go] Shutdown error: %v", err)
+		}
+	}
+
+	w.mu.Lock()
+	for conn := range w.clients {
+		_ = conn.Close()
+		delete(w.clients, conn)
+	}
+	w.mu.Unlock()
 }

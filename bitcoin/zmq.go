@@ -18,6 +18,7 @@ type ZmqBlockSubscriber struct {
 	onBlockFound    func(blockHash string)
 	conn            net.Conn
 	stopChan        chan struct{}
+	stopOnce        sync.Once
 	mu              sync.RWMutex
 	lastConnectedAt time.Time
 	lastCheckAt     time.Time
@@ -105,7 +106,9 @@ func (z *ZmqBlockSubscriber) connectLoop() {
 		}
 		lastConnectAt = time.Now()
 
+		z.mu.Lock()
 		z.conn = conn
+		z.mu.Unlock()
 		z.setHealthState(true, nil)
 		log.Printf("[ZMQ Go] Connected to ZMQ socket at %s! Listening for instant block notifications...", addr)
 
@@ -275,8 +278,14 @@ func (z *ZmqBlockSubscriber) readLoop(conn net.Conn) error {
 }
 
 func (z *ZmqBlockSubscriber) Stop() {
-	close(z.stopChan)
-	if z.conn != nil {
-		z.conn.Close()
+	z.stopOnce.Do(func() { close(z.stopChan) })
+
+	z.mu.Lock()
+	conn := z.conn
+	z.conn = nil
+	z.mu.Unlock()
+
+	if conn != nil {
+		_ = conn.Close()
 	}
 }

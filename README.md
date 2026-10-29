@@ -130,6 +130,10 @@ docker compose down
 - Dashboard ใช้ WebSocket เพื่อ push stats แบบ realtime
 - เมื่อ `submitblock` สำเร็จ ระบบจะส่งการแจ้งเตือนตาม `ENABLE_NTFY` และ `ENABLE_DISCORD` (Discord ต้องตั้ง webhook URL ด้วย) และ reset best share ของทุก session
 - รายการ blocks found ถูกเก็บไว้ใน `data/found_blocks.json`
+- template ของ block จะถูกตรวจซ้ำทุกไม่กี่วินาที และ broadcast job ใหม่เฉพาะเมื่อเนื้อหาของ template เปลี่ยนจริง (ไม่ใช่ทุกครั้งที่ `curtime` เปลี่ยน) เพื่อไม่ให้ miner ถูก reset งานโดยไม่จำเป็น
+- `STRATUM_IDLE_TIMEOUT` (วินาที, ค่าเริ่มต้น `0` = ปิด) ใช้ตัด connection ที่ไม่ส่งข้อมูลเข้ามาเลยตามเวลาที่กำหนด
+- `STRATUM_MAX_CONNS` (ค่าเริ่มต้น `0` = ไม่จำกัด) ใช้จำกัดจำนวน connection ที่ active พร้อมกัน
+- ตอนปิดโปรแกรม (Ctrl+C / SIGTERM) ระบบจะหยุดรับ connection ใหม่ ปิด session ของ miner และ shutdown web dashboard ให้เรียบร้อยก่อนจบ process
 
 ## Connecting Miners
 

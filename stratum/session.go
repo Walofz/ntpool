@@ -14,6 +14,26 @@ type ShareHistory struct {
 	Diff      float64
 }
 
+// SessionSnapshot is a value copy of the mutable parts of a session so callers
+// outside the session goroutine never read fields while they are being written.
+type SessionSnapshot struct {
+	ID                    string
+	MinerAddress          string
+	WorkerName            string
+	IsAuthorized          bool
+	CurrentDiff           float64
+	AcceptedShares        int64
+	RejectedShares        int64
+	BestShareDiff         float64
+	ConnectedAt           time.Time
+	VersionRollingEnabled bool
+	Status                string
+	DisabledReason        string
+	BannedReason          string
+	Hashrate1m            float64
+	Hashrate5m            float64
+}
+
 type StratumSession struct {
 	mu                    sync.Mutex
 	writeMu               sync.Mutex
@@ -135,7 +155,10 @@ func (s *StratumSession) SubmitBlocker() string {
 func (s *StratumSession) GetSessionStatus() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.statusLocked()
+}
 
+func (s *StratumSession) statusLocked() string {
 	switch {
 	case s.IsBanned:
 		return "banned"
@@ -144,6 +167,77 @@ func (s *StratumSession) GetSessionStatus() string {
 	default:
 		return "active"
 	}
+}
+
+// Snapshot returns a consistent copy of the session state.
+func (s *StratumSession) Snapshot() SessionSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return SessionSnapshot{
+		ID:                    s.ID,
+		MinerAddress:          s.MinerAddress,
+		WorkerName:            s.WorkerName,
+		IsAuthorized:          s.IsAuthorized,
+		CurrentDiff:           s.CurrentDiff,
+		AcceptedShares:        s.AcceptedShares,
+		RejectedShares:        s.RejectedShares,
+		BestShareDiff:         s.BestShareDiff,
+		ConnectedAt:           s.ConnectedAt,
+		VersionRollingEnabled: s.VersionRollingEnabled,
+		Status:                s.statusLocked(),
+		DisabledReason:        s.DisabledReason,
+		BannedReason:          s.BannedReason,
+		Hashrate1m:            s.hashrateLocked(60),
+		Hashrate5m:            s.hashrateLocked(300),
+	}
+}
+
+// Identity returns the payout address and worker name of the session.
+func (s *StratumSession) Identity() (string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.MinerAddress, s.WorkerName
+}
+
+// Authorize records the worker identity and marks the session as authorized.
+func (s *StratumSession) Authorize(minerAddress, workerName string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.MinerAddress = minerAddress
+	s.WorkerName = workerName
+	s.IsAuthorized = true
+}
+
+func (s *StratumSession) MarkSubscribed() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.IsSubscribed = true
+}
+
+func (s *StratumSession) SetVersionRolling(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.VersionRollingEnabled = enabled
+}
+
+func (s *StratumSession) IsAuthorizedNow() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.IsAuthorized
+}
+
+// Diff returns the difficulty currently assigned to the session.
+func (s *StratumSession) Diff() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.CurrentDiff
+}
+
+func (s *StratumSession) RecordReject() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.RejectedShares++
 }
 
 func (s *StratumSession) RecordShare(cfg *config.Config, targetDiff float64, shareDiff float64) (float64, bool) {
@@ -226,7 +320,10 @@ func (s *StratumSession) RecordShare(cfg *config.Config, targetDiff float64, sha
 func (s *StratumSession) GetHashrate(intervalSec float64) float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.hashrateLocked(intervalSec)
+}
 
+func (s *StratumSession) hashrateLocked(intervalSec float64) float64 {
 	now := time.Now().UnixMilli()
 	cutoff := now - int64(intervalSec*1000)
 

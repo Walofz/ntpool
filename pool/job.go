@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strconv"
@@ -210,6 +211,47 @@ func (jm *JobManager) CreateJob(template map[string]interface{}) *MiningJob {
 	}
 
 	return job
+}
+
+// TemplateFingerprint returns a stable identifier for the template fields that
+// feed the coinbase and the merkle root. Volatile fields (curtime, nonce, workid)
+// are excluded so a template that only changed its timestamp keeps the same job.
+// Transaction order is significant because it changes the merkle root.
+func TemplateFingerprint(template map[string]interface{}) string {
+	if template == nil {
+		return ""
+	}
+
+	height, _ := template["height"].(float64)
+	coinbaseval, _ := template["coinbasevalue"].(float64)
+	version, _ := template["version"].(float64)
+	prevblockhash, _ := template["previousblockhash"].(string)
+	bits, _ := template["bits"].(string)
+	target, _ := template["target"].(string)
+	witnessCommitment, _ := template["default_witness_commitment"].(string)
+
+	h := sha256.New()
+	fmt.Fprintf(h, "%d|%.0f|%.0f|%s|%s|%s|%s|", int64(height), coinbaseval, version, prevblockhash, bits, target, witnessCommitment)
+
+	if txList, ok := template["transactions"].([]interface{}); ok {
+		for _, item := range txList {
+			txMap, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			id, _ := txMap["txid"].(string)
+			if id == "" {
+				id, _ = txMap["hash"].(string)
+			}
+			if id == "" {
+				id, _ = txMap["data"].(string)
+			}
+			h.Write([]byte(id))
+			h.Write([]byte{'|'})
+		}
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (jm *JobManager) GetCurrentJob() *MiningJob {

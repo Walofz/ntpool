@@ -7,6 +7,8 @@ import (
 
 type Config struct {
 	StratumPort         int
+	StratumIdleTimeout  int
+	StratumMaxConns     int
 	WebPort             int
 	DefaultDiff         float64
 	EnableVardiff       bool
@@ -81,6 +83,8 @@ func LoadConfig() *Config {
 
 	return &Config{
 		StratumPort:         getEnvInt("STRATUM_PORT", 3333),
+		StratumIdleTimeout:  getEnvInt("STRATUM_IDLE_TIMEOUT", 0),
+		StratumMaxConns:     getEnvInt("STRATUM_MAX_CONNS", 0),
 		WebPort:             getEnvInt("WEB_PORT", 8080),
 		DefaultDiff:         getEnvFloat("DEFAULT_DIFF", 1024),
 		EnableVardiff:       getEnvBool("ENABLE_VARDIFF", false),

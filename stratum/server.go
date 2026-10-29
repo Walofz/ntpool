@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ntpool/bitcoin"
@@ -54,6 +55,8 @@ type StratumServer struct {
 	blocksMu           sync.RWMutex
 	saveMu             sync.Mutex
 	notificationMu     sync.RWMutex
+	listenMu           sync.Mutex
+	stopOnce           sync.Once
 	cfg                *config.Config
 	jobManager         *pool.JobManager
 	bitcoinRpc         *bitcoin.BitcoinRpcClient
@@ -63,6 +66,9 @@ type StratumServer struct {
 	StatsUpdated       chan struct{}
 	blocksFilePath     string
 	notificationStatus map[string]NotificationChannelStatus
+	listener           net.Listener
+	stopChan           chan struct{}
+	activeConns        int64
 }
 
 func NewStratumServer(cfg *config.Config, jm *pool.JobManager, rpc *bitcoin.BitcoinRpcClient) *StratumServer {
@@ -73,6 +79,7 @@ func NewStratumServer(cfg *config.Config, jm *pool.JobManager, rpc *bitcoin.Bitc
 		sessions:       make(map[string]*StratumSession),
 		StatsUpdated:   make(chan struct{}, 100),
 		blocksFilePath: filepath.Join(".", "data", "found_blocks.json"),
+		stopChan:       make(chan struct{}),
 		notificationStatus: map[string]NotificationChannelStatus{
 			"ntfy": {
 				Enabled:    cfg.EnableNtfy,
@@ -273,11 +280,20 @@ func (s *StratumServer) Start() error {
 		return err
 	}
 
+	s.listenMu.Lock()
+	s.listener = listener
+	s.listenMu.Unlock()
+
 	log.Printf("[Stratum Go] Server listening on %s", addr)
 	go func() {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
+				if s.stopped() {
+					return
+				}
+				log.Printf("[Stratum Go] Accept error: %v (retrying in 1s)", err)
+				time.Sleep(time.Second)
 				continue
 			}
 			go s.handleConnection(conn)
@@ -286,7 +302,43 @@ func (s *StratumServer) Start() error {
 	return nil
 }
 
+func (s *StratumServer) stopped() bool {
+	select {
+	case <-s.stopChan:
+		return true
+	default:
+		return false
+	}
+}
+
+// Stop closes the listener and every live session connection.
+func (s *StratumServer) Stop() {
+	s.stopOnce.Do(func() { close(s.stopChan) })
+
+	s.listenMu.Lock()
+	listener := s.listener
+	s.listener = nil
+	s.listenMu.Unlock()
+	if listener != nil {
+		_ = listener.Close()
+	}
+
+	for _, session := range s.GetActiveSessions() {
+		if session.Conn != nil {
+			_ = session.Conn.Close()
+		}
+	}
+}
+
 func (s *StratumServer) handleConnection(conn net.Conn) {
+	active := atomic.AddInt64(&s.activeConns, 1)
+	defer atomic.AddInt64(&s.activeConns, -1)
+	if maxConns := s.cfg.StratumMaxConns; maxConns > 0 && active > int64(maxConns) {
+		log.Printf("[Stratum Go] Rejecting %s: STRATUM_MAX_CONNS limit %d reached", conn.RemoteAddr(), maxConns)
+		_ = conn.Close()
+		return
+	}
+
 	s.mu.Lock()
 	s.sessionCounter++
 	sessionID := fmt.Sprintf("%08x", s.sessionCounter)
@@ -305,14 +357,28 @@ func (s *StratumServer) handleConnection(conn net.Conn) {
 
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 4096), 1024*1024)
-	for scanner.Scan() {
+
+	idleTimeout := time.Duration(s.cfg.StratumIdleTimeout) * time.Second
+	for {
+		if idleTimeout > 0 {
+			if err := conn.SetReadDeadline(time.Now().Add(idleTimeout)); err != nil {
+				break
+			}
+		}
+		if !scanner.Scan() {
+			break
+		}
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" {
 			s.handleMessage(session, line)
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("[Stratum] Session %s scanner error: %v", session.ID, err)
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			log.Printf("[Stratum] Session %s closed after %s without data (STRATUM_IDLE_TIMEOUT)", session.ID, idleTimeout)
+		} else {
+			log.Printf("[Stratum] Session %s scanner error: %v", session.ID, err)
+		}
 	}
 }
 
@@ -374,7 +440,7 @@ func (s *StratumServer) handleMessage(session *StratumSession, rawLine string) {
 
 func (s *StratumServer) handleConfigure(session *StratumSession, id interface{}, params []interface{}) {
 	result := make(map[string]interface{})
-	session.VersionRollingEnabled = true
+	session.SetVersionRolling(true)
 	result["version-rolling"] = true
 	result["version-rolling.mask"] = session.VersionRollingMask
 	s.sendResponse(session, id, result, nil)
@@ -589,13 +655,13 @@ func newDiscordTestBlock(symbol string) (FoundBlock, error) {
 }
 
 func (s *StratumServer) handleSubscribe(session *StratumSession, id interface{}, params []interface{}) {
-	session.IsSubscribed = true
+	session.MarkSubscribed()
 	subscriptions := []interface{}{
 		[]interface{}{"mining.set_difficulty", fmt.Sprintf("%s_diff", session.ID)},
 		[]interface{}{"mining.notify", fmt.Sprintf("%s_notify", session.ID)},
 	}
 	s.sendResponse(session, id, []interface{}{subscriptions, session.Extranonce1, session.Extranonce2Size}, nil)
-	s.sendNotification(session, "mining.set_difficulty", []interface{}{session.CurrentDiff})
+	s.sendNotification(session, "mining.set_difficulty", []interface{}{session.Diff()})
 }
 
 func (s *StratumServer) handleAuthorize(session *StratumSession, id interface{}, params []interface{}) {
@@ -604,17 +670,15 @@ func (s *StratumServer) handleAuthorize(session *StratumSession, id interface{},
 		fullUser, _ = params[0].(string)
 	}
 
+	workerName := "default"
 	parts := strings.SplitN(fullUser, ".", 2)
 	if len(parts) == 2 && parts[1] != "" {
-		session.WorkerName = parts[1]
+		workerName = parts[1]
 	} else if fullUser != "" {
-		session.WorkerName = fullUser
-	} else {
-		session.WorkerName = "default"
+		workerName = fullUser
 	}
-	session.MinerAddress = s.cfg.WalletAddress
 
-	session.IsAuthorized = true
+	session.Authorize(s.cfg.WalletAddress, workerName)
 	s.sendResponse(session, id, true, nil)
 	s.notifyStats()
 
@@ -625,13 +689,13 @@ func (s *StratumServer) handleAuthorize(session *StratumSession, id interface{},
 }
 
 func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, params []interface{}) {
-	if !session.IsAuthorized || len(params) < 5 {
+	if !session.IsAuthorizedNow() || len(params) < 5 {
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 24, "message": "Unauthorized or invalid params"})
 		return
 	}
 
 	if blocker := session.SubmitBlocker(); blocker != "" {
-		session.RejectedShares++
+		session.RecordReject()
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 24, "message": blocker})
 		return
 	}
@@ -647,13 +711,13 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 
 	job := s.jobManager.GetJob(jobId)
 	if job == nil {
-		session.RejectedShares++
+		session.RecordReject()
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 21, "message": "Stale / Job not found"})
 		return
 	}
 
 	if session.IsDuplicateShare(shareKey(jobId, extranonce2Hex, nTimeHex, nonceHex, versionBitsHex)) {
-		session.RejectedShares++
+		session.RecordReject()
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 22, "message": "Duplicate share"})
 		return
 	}
@@ -731,7 +795,7 @@ primaryLoop:
 	}
 
 	if !accepted {
-		session.RejectedShares++
+		session.RecordReject()
 		s.sendResponse(session, id, false, map[string]interface{}{
 			"code":    23,
 			"message": fmt.Sprintf("Low difficulty share (Achieved diff %.2f < required %.2f)", finalShareDiff, requiredDiff),
@@ -751,13 +815,14 @@ primaryLoop:
 
 	if finalHashBigInt != nil && finalHashBigInt.Cmp(networkTarget) <= 0 {
 		blockHashHex := hex.EncodeToString(finalHashBE)
-		log.Printf("  [BLOCK FOUND] Miner %s FOUND BLOCK #%d! Hash: %s", session.MinerAddress, job.BlockHeight, blockHashHex)
+		minerAddr, workerName := session.Identity()
+		log.Printf("  [BLOCK FOUND] Miner %s FOUND BLOCK #%d! Hash: %s", minerAddr, job.BlockHeight, blockHashHex)
 
 		blockRecord := FoundBlock{
 			Height:    job.BlockHeight,
 			Hash:      blockHashHex,
-			Miner:     session.MinerAddress,
-			Worker:    session.WorkerName,
+			Miner:     minerAddr,
+			Worker:    workerName,
 			Timestamp: time.Now(),
 			Reward:    float64(job.CoinbaseValue) / 1e8,
 			Symbol:    s.cfg.CoinSymbol,
@@ -822,11 +887,10 @@ func (s *StratumServer) buildFullBlockHex(header []byte, coinbaseTxHex string, t
 }
 
 func (s *StratumServer) BroadcastJob(job *pool.MiningJob, cleanJobs bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, session := range s.sessions {
-		if session.IsAuthorized {
+	// Snapshot the session list first so slow socket writes never block the
+	// session map for the whole broadcast.
+	for _, session := range s.GetActiveSessions() {
+		if session.IsAuthorizedNow() {
 			s.sendJobToSession(session, job, cleanJobs)
 		}
 	}
@@ -1020,4 +1084,14 @@ func (s *StratumServer) GetActiveSessions() []*StratumSession {
 		list = append(list, sess)
 	}
 	return list
+}
+
+// GetSessionSnapshots returns consistent value copies of every live session.
+func (s *StratumServer) GetSessionSnapshots() []SessionSnapshot {
+	sessions := s.GetActiveSessions()
+	snapshots := make([]SessionSnapshot, 0, len(sessions))
+	for _, session := range sessions {
+		snapshots = append(snapshots, session.Snapshot())
+	}
+	return snapshots
 }

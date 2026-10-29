@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,19 +37,41 @@ func main() {
 	stratumServer := stratum.NewStratumServer(cfg, jobManager, bitcoinRpc)
 
 	// Helper to fetch and broadcast new block template
+	var templateMu sync.Mutex
+	var lastTemplateFingerprint string
 	updateJob := func(reason string) {
-		tmpl, err := bitcoinRpc.GetBlockTemplate()
-		if err == nil && tmpl != nil {
-			currentJob := jobManager.GetCurrentJob()
-			heightFloat, _ := tmpl["height"].(float64)
-			newHeight := int64(heightFloat)
+		templateMu.Lock()
+		defer templateMu.Unlock()
 
-			if currentJob == nil || currentJob.BlockHeight != newHeight {
-				log.Printf("[JobEngine Go] New block template (%s) Height #%d", reason, newHeight)
-				job := jobManager.CreateJob(tmpl)
-				stratumServer.BroadcastJob(job, true)
-			}
+		tmpl, err := bitcoinRpc.GetBlockTemplate()
+		if err != nil || tmpl == nil {
+			return
 		}
+
+		fingerprint := pool.TemplateFingerprint(tmpl)
+		currentJob := jobManager.GetCurrentJob()
+		if currentJob != nil && fingerprint == lastTemplateFingerprint {
+			return
+		}
+
+		heightFloat, _ := tmpl["height"].(float64)
+		newHeight := int64(heightFloat)
+		coinbaseval, _ := tmpl["coinbasevalue"].(float64)
+		prevHash, _ := tmpl["previousblockhash"].(string)
+
+		// cleanJobs invalidates work in flight, so only set it when the previous
+		// block actually changed. A same-height fee refresh must keep old jobs valid.
+		cleanJobs := currentJob == nil || currentJob.BlockHeight != newHeight || currentJob.PrevHashRaw != prevHash
+
+		if cleanJobs {
+			log.Printf("[JobEngine Go] New block template (%s) Height #%d", reason, newHeight)
+		} else {
+			log.Printf("[JobEngine Go] Refreshed template (%s) Height #%d coinbase %.8f", reason, newHeight, coinbaseval/1e8)
+		}
+
+		job := jobManager.CreateJob(tmpl)
+		stratumServer.BroadcastJob(job, cleanJobs)
+		lastTemplateFingerprint = fingerprint
 	}
 
 	// Instant ZMQ Block Subscriber
@@ -75,7 +100,7 @@ func main() {
 
 	// Start Web Dashboard
 	go func() {
-		if err := webServer.Start(); err != nil {
+		if err := webServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("[Web Error] %v", err)
 		}
 	}()
@@ -86,4 +111,8 @@ func main() {
 	<-stop
 
 	log.Printf("[ntpool Go] Shutting down pool gracefully...")
+	zmqSub.Stop()
+	stratumServer.Stop()
+	webServer.Stop()
+	log.Printf("[ntpool Go] Shutdown complete")
 }
