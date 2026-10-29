@@ -100,18 +100,42 @@ func (c *BitcoinRpcClient) Call(method string, params []interface{}) (map[string
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		err = fmt.Errorf("RPC %s (HTTP %s): read response: %w", method, resp.Status, err)
+		c.setHealthState(err)
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		err = fmt.Errorf("RPC %s: HTTP %s: check RPC_USER and RPC_PASSWORD", method, resp.Status)
+	case http.StatusForbidden:
+		err = fmt.Errorf("RPC %s: HTTP %s: check node rpcallowip and RPC access rules", method, resp.Status)
+	}
+	if err != nil {
+		c.setHealthState(err)
+		return nil, err
+	}
+	if len(bytes.TrimSpace(respBytes)) == 0 {
+		err = fmt.Errorf("RPC %s (HTTP %s): empty response body; check RPC_HOST, RPC_PORT and node/proxy configuration", method, resp.Status)
 		c.setHealthState(err)
 		return nil, err
 	}
 
 	var jsonResp map[string]interface{}
-	if err := json.Unmarshal(respBytes, &jsonResp); err != nil {
+	if err = json.Unmarshal(respBytes, &jsonResp); err != nil {
+		err = fmt.Errorf("RPC %s (HTTP %s): invalid JSON response: %w; check RPC endpoint and node/proxy configuration", method, resp.Status, err)
 		c.setHealthState(err)
 		return nil, err
 	}
 
 	if errObj, ok := jsonResp["error"]; ok && errObj != nil {
-		err = fmt.Errorf("RPC Error: %v", errObj)
+		err = fmt.Errorf("RPC %s (HTTP %s): RPC Error: %v", method, resp.Status, errObj)
+		c.setHealthState(err)
+		return nil, err
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		err = fmt.Errorf("RPC %s: HTTP %s", method, resp.Status)
 		c.setHealthState(err)
 		return nil, err
 	}

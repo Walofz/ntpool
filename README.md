@@ -123,6 +123,16 @@ docker compose down
 
 ถ้า Bitcoin node อยู่บน host machine อาจต้องเปิด `extra_hosts` ใน [docker-compose.yml](docker-compose.yml)
 
+### RPC Troubleshooting
+
+หากพบ `unexpected end of JSON input` อาจเกิดจาก node หรือ proxy ส่ง body ว่างหรือ JSON ไม่ครบ ไม่ได้หมายความว่าเชื่อมต่อ RPC สำเร็จแล้ว ข้อผิดพลาดจาก RPC client จะแสดงชื่อ method และ HTTP status เพื่อช่วยแยกสาเหตุ:
+
+- `401 Unauthorized`: ตรวจ `RPC_USER` และ `RPC_PASSWORD` ให้ตรงกับ node
+- `403 Forbidden`: ตรวจ `rpcallowip` และกฎการเข้าถึง RPC ให้ยอมรับ IP ของเครื่องหรือ container ที่รัน pool โดยไม่เปิด RPC สู่สาธารณะ
+- `empty response body` หรือ `invalid JSON response`: ตรวจ `RPC_HOST` และ `RPC_PORT` ว่าชี้ไปยัง HTTP JSON-RPC ไม่ใช่พอร์ต P2P, Stratum หรือ ZMQ รวมถึงตรวจ log ของ node และ proxy
+- หากรัน pool ใน Docker ค่า `127.0.0.1` จะหมายถึง container ของ pool เอง ไม่ใช่เครื่อง host ให้ใช้ชื่อ service ของ node หรือ host ที่ container เข้าถึงได้
+- หากมีข้อความ RPC error จาก node เช่นกำลังโหลด block index ให้ตรวจสถานะ node ตามข้อความนั้น
+
 ## Runtime Notes
 
 - Stratum server ฟังที่ `0.0.0.0:STRATUM_PORT`
