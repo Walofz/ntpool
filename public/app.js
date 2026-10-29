@@ -317,7 +317,7 @@ function updateDashboard(data) {
       : `${updated} • Market API`;
   };
 
-  setText('pool-hashrate', displayHashrate('pool-hashrate', data.poolHashrate1m || 0));
+  setText('pool-hashrate', displayHashrate('pool-hashrate', data.poolHashrate5m || 0));
   setText('connected-workers', data.connectedWorkers || 0);
   setText('block-height', data.blockHeight ? `#${data.blockHeight}` : '0');
   setText('network-diff', formatDifficulty(data.networkDifficulty || 0));
@@ -424,7 +424,7 @@ function updateDashboard(data) {
   const totalShares = workers.reduce((sum, w) => sum + ((w.acceptedShares || 0) + (w.rejectedShares || 0)), 0);
   const rejectRate = totalShares > 0 ? ((workers.reduce((sum, w) => sum + (w.rejectedShares || 0), 0) / totalShares) * 100) : 0;
   const topWorker = workers.reduce((best, w) => {
-    if (!best || (w.hashrate1m || 0) > (best.hashrate1m || 0)) return w;
+    if (!best || (w.hashrate5m || 0) > (best.hashrate5m || 0)) return w;
     return best;
   }, null);
   const bestShareWorker = workers.reduce((best, w) => {
@@ -433,7 +433,7 @@ function updateDashboard(data) {
   }, null);
 
   const topWorkerEl = document.getElementById('top-worker');
-  if (topWorkerEl) topWorkerEl.innerText = topWorker ? `${topWorker.workerName || 'N/A'} (${displayHashrate(`worker-${topWorker.sessionId || topWorker.workerName || 'top'}`, topWorker.hashrate1m || 0)})` : '—';
+  if (topWorkerEl) topWorkerEl.innerText = topWorker ? `${topWorker.workerName || 'N/A'} (${displayHashrate(`worker-${topWorker.sessionId || topWorker.workerName || 'top'}`, topWorker.hashrate5m || 0)})` : '—';
 
   const bestShareWorkerEl = document.getElementById('best-share-worker');
   if (bestShareWorkerEl) bestShareWorkerEl.innerText = bestShareWorker ? `${bestShareWorker.workerName || 'N/A'} (${formatDifficulty(bestShareWorker.bestShareDiff || 0)})` : '—';
@@ -449,12 +449,12 @@ function updateDashboard(data) {
     if (!workers.length) {
       analyticsList.innerHTML = '<div class="analytics-empty">No worker activity yet.</div>';
     } else {
-      const ranked = [...workers].sort((a, b) => (b.hashrate1m || 0) - (a.hashrate1m || 0)).slice(0, 5);
-      const totalRate = ranked.reduce((sum, worker) => sum + (worker.hashrate1m || 0), 0) || 1;
+      const ranked = [...workers].sort((a, b) => (b.hashrate5m || 0) - (a.hashrate5m || 0)).slice(0, 5);
+      const totalRate = ranked.reduce((sum, worker) => sum + (worker.hashrate5m || 0), 0) || 1;
 
       analyticsList.innerHTML = ranked.map((w, idx) => {
         const key = `worker-${w.sessionId || w.workerName || idx}`;
-        const displayRate = smoothHashrateValue(key, w.hashrate1m || 0);
+        const displayRate = smoothHashrateValue(key, w.hashrate5m || 0);
         const sharePercent = totalRate > 0 ? (displayRate / totalRate) * 100 : 0;
 
         return `
@@ -484,7 +484,7 @@ function updateDashboard(data) {
     } else {
       tbody.innerHTML = data.workers.map(w => {
         const workerKey = `worker-${w.sessionId || w.workerName || w.address || 'anon'}`;
-        const displayRate = smoothHashrateValue(workerKey, w.hashrate1m || 0);
+        const displayRate = smoothHashrateValue(workerKey, w.hashrate5m || 0);
         return `
           <tr class="worker-row" data-session-id="${escapeHtml(w.sessionId)}" data-worker-name="${escapeHtml(w.workerName || 'worker')}" data-worker-address="${escapeHtml(w.address || '')}" data-worker-status="${escapeHtml(w.status || 'active')}">
             <td class="mono worker-select" title="${escapeHtml(w.address || '')}" data-session-id="${escapeHtml(w.sessionId)}">${escapeHtml(truncateAddress(w.address))}</td>

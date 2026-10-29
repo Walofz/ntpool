@@ -324,8 +324,22 @@ func (s *StratumSession) GetHashrate(intervalSec float64) float64 {
 }
 
 func (s *StratumSession) hashrateLocked(intervalSec float64) float64 {
-	now := time.Now().UnixMilli()
-	cutoff := now - int64(intervalSec*1000)
+	if intervalSec <= 0 {
+		return 0
+	}
+
+	// Divide by the part of the window that actually has share data, otherwise a
+	// session younger than the window reports a fraction of its real hashrate.
+	now := time.Now()
+	window := intervalSec
+	if elapsed := now.Sub(s.ConnectedAt).Seconds(); elapsed < window {
+		window = elapsed
+	}
+	if window < 60 {
+		window = 60
+	}
+
+	cutoff := now.UnixMilli() - int64(window*1000)
 
 	var totalDiff float64
 	for _, sh := range s.ShareHistory {
@@ -334,11 +348,11 @@ func (s *StratumSession) hashrateLocked(intervalSec float64) float64 {
 		}
 	}
 
-	if totalDiff == 0 || intervalSec <= 0 {
+	if totalDiff == 0 {
 		return 0
 	}
 
-	return (totalDiff * 4294967296.0) / intervalSec
+	return (totalDiff * 4294967296.0) / window
 }
 
 func mathMax(a, b float64) float64 {
