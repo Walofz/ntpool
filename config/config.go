@@ -15,6 +15,7 @@ type Config struct {
 	MinDiff             float64
 	MaxDiff             float64
 	VardiffTargetShares int
+	ShareLog            bool
 	RpcHost             string
 	RpcPort             int
 	RpcUser             string
@@ -91,6 +92,7 @@ func LoadConfig() *Config {
 		MinDiff:             getEnvFloat("MIN_DIFF", 64),
 		MaxDiff:             getEnvFloat("MAX_DIFF", 1048576),
 		VardiffTargetShares: getEnvInt("VARDIFF_TARGET_SHARES", 12),
+		ShareLog:            getEnvBool("LOG_SHARES", false),
 		RpcHost:             getEnv("RPC_HOST", "127.0.0.1"),
 		RpcPort:             getEnvInt("RPC_PORT", 8332),
 		RpcUser:             getEnv("RPC_USER", "bitcoinrpc"),

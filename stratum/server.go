@@ -431,11 +431,36 @@ func (s *StratumServer) handleMessage(session *StratumSession, rawLine string) {
 		s.handleAuthorize(session, id, params)
 	case "mining.submit":
 		s.handleSubmit(session, id, params)
-	case "mining.suggest_difficulty", "mining.suggest_target", "mining.extranonce.subscribe":
+	case "mining.suggest_difficulty":
+		s.handleSuggestDifficulty(session, id, params)
+	case "mining.suggest_target", "mining.extranonce.subscribe":
 		s.sendResponse(session, id, true, nil)
 	default:
 		s.sendResponse(session, id, nil, map[string]interface{}{"code": -32601, "message": "Method not found"})
 	}
+}
+
+// handleSuggestDifficulty acknowledges the miner's requested difficulty. The
+// pool keeps its own difficulty, but the request is logged because a miner that
+// mines at a difficulty other than the assigned one submits shares the pool has
+// to reject.
+func (s *StratumServer) handleSuggestDifficulty(session *StratumSession, id interface{}, params []interface{}) {
+	suggested := 0.0
+	if len(params) > 0 {
+		switch v := params[0].(type) {
+		case float64:
+			suggested = v
+		case string:
+			if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+				suggested = f
+			}
+		}
+	}
+
+	_, workerName := session.Identity()
+	log.Printf("[Stratum] worker=%s ip=%s suggested diff %s while pool diff is %s - request acknowledged, pool keeps its own difficulty",
+		fallbackWorker(workerName), session.IP, formatShareDiff(suggested), formatShareDiff(session.Diff()))
+	s.sendResponse(session, id, true, nil)
 }
 
 func (s *StratumServer) handleConfigure(session *StratumSession, id interface{}, params []interface{}) {
@@ -694,12 +719,6 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 		return
 	}
 
-	if blocker := session.SubmitBlocker(); blocker != "" {
-		session.RecordReject()
-		s.sendResponse(session, id, false, map[string]interface{}{"code": 24, "message": blocker})
-		return
-	}
-
 	jobId, _ := params[1].(string)
 	extranonce2Hex, _ := params[2].(string)
 	nTimeHex, _ := params[3].(string)
@@ -709,15 +728,24 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 		versionBitsHex = params[5]
 	}
 
+	if blocker := session.SubmitBlocker(); blocker != "" {
+		session.RecordReject()
+		s.logShareReject(session, jobId, nil, blocker, session.Diff(), 0, "")
+		s.sendResponse(session, id, false, map[string]interface{}{"code": 24, "message": blocker})
+		return
+	}
+
 	job := s.jobManager.GetJob(jobId)
 	if job == nil {
 		session.RecordReject()
+		s.logShareReject(session, jobId, nil, "Stale / Job not found", session.Diff(), 0, "")
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 21, "message": "Stale / Job not found"})
 		return
 	}
 
 	if session.IsDuplicateShare(shareKey(jobId, extranonce2Hex, nTimeHex, nonceHex, versionBitsHex)) {
 		session.RecordReject()
+		s.logShareReject(session, jobId, job, "Duplicate share", session.Diff(), 0, "")
 		s.sendResponse(session, id, false, map[string]interface{}{"code": 22, "message": "Duplicate share"})
 		return
 	}
@@ -796,6 +824,9 @@ primaryLoop:
 
 	if !accepted {
 		session.RecordReject()
+		s.logShareReject(session, jobId, job, "Low difficulty share", requiredDiff, finalShareDiff,
+			fmt.Sprintf("candidates=ext2:%d ntime:%d nonce:%d version:%d",
+				len(ext2Candidates), len(nTimeCandidates), len(nonceCandidates), len(versionCandidates)))
 		s.sendResponse(session, id, false, map[string]interface{}{
 			"code":    23,
 			"message": fmt.Sprintf("Low difficulty share (Achieved diff %.2f < required %.2f)", finalShareDiff, requiredDiff),
@@ -804,6 +835,7 @@ primaryLoop:
 	}
 
 	newDiff, diffChanged := session.RecordShare(s.cfg, requiredDiff, finalShareDiff)
+	s.logShareAccept(session, job, requiredDiff, finalShareDiff)
 
 	s.sendResponse(session, id, true, nil)
 	s.notifyStats()
@@ -849,6 +881,81 @@ primaryLoop:
 		go s.notifyBlockFound(blockRecord)
 		go s.notifyDiscordBlockFound(blockRecord)
 	}
+}
+
+// formatShareDiff renders a difficulty for logs: readable for fractional shares
+// and free of noisy decimals for the large values a big farm runs at.
+func formatShareDiff(diff float64) string {
+	switch {
+	case diff >= 1000:
+		return fmt.Sprintf("%.0f", diff)
+	case diff >= 1:
+		return fmt.Sprintf("%.2f", diff)
+	default:
+		return fmt.Sprintf("%.6g", diff)
+	}
+}
+
+// logShareReject records why a share was refused together with the difficulty
+// the session required and the difficulty the share actually reached, so a
+// rising reject rate can be traced to a worker, a job and a diff mismatch
+// instead of only showing up as a percentage on the dashboard.
+func (s *StratumServer) logShareReject(session *StratumSession, jobID string, job *pool.MiningJob, reason string, requiredDiff, achievedDiff float64, extra string) {
+	_, workerName := session.Identity()
+	workerName = fallbackWorker(workerName)
+	jobAge := "n/a"
+	height := int64(0)
+	if job != nil {
+		jobAge = time.Since(time.UnixMilli(job.CreatedTime)).Round(time.Millisecond).String()
+		height = job.BlockHeight
+	} else if stale := s.jobsBehind(jobID); stale != "" {
+		extra = strings.TrimSpace(extra + " " + stale)
+	}
+	if extra != "" {
+		extra = " " + extra
+	}
+	log.Printf("[Share] REJECT worker=%s ip=%s session=%s job=%s height=%d reason=%q requiredDiff=%s achievedDiff=%s jobAge=%s%s",
+		workerName, session.IP, session.ID, jobID, height, reason,
+		formatShareDiff(requiredDiff), formatShareDiff(achievedDiff), jobAge, extra)
+}
+
+// jobsBehind reports how many job generations a submission lags behind the
+// current job, which exposes miners still hashing on outdated work.
+func (s *StratumServer) jobsBehind(jobID string) string {
+	current := s.jobManager.GetCurrentJob()
+	if current == nil {
+		return ""
+	}
+	submitted, err := strconv.ParseInt(jobID, 16, 64)
+	if err != nil {
+		return ""
+	}
+	latest, err := strconv.ParseInt(current.JobId, 16, 64)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("currentJob=%s jobsBehind=%d", current.JobId, latest-submitted)
+}
+
+// logShareAccept logs accepted shares with their difficulties when LOG_SHARES
+// is enabled, which is enough to confirm what difficulty a miner really submits.
+func (s *StratumServer) logShareAccept(session *StratumSession, job *pool.MiningJob, requiredDiff, achievedDiff float64) {
+	if !s.cfg.ShareLog {
+		return
+	}
+	_, workerName := session.Identity()
+	workerName = fallbackWorker(workerName)
+	log.Printf("[Share] accept worker=%s ip=%s session=%s job=%s height=%d requiredDiff=%s achievedDiff=%s",
+		workerName, session.IP, session.ID, job.JobId, job.BlockHeight,
+		formatShareDiff(requiredDiff), formatShareDiff(achievedDiff))
+}
+
+// fallbackWorker keeps log lines parseable before a session has authorized.
+func fallbackWorker(name string) string {
+	if name == "" {
+		return "unknown"
+	}
+	return name
 }
 
 func (s *StratumServer) buildFullBlockHex(header []byte, coinbaseTxHex string, txsData []string) string {

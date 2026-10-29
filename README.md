@@ -71,6 +71,7 @@ cp .env.example .env
 | `MIN_DIFF` | difficulty ต่ำสุดของ vardiff | `64` |
 | `MAX_DIFF` | difficulty สูงสุดของ vardiff | `1048576` |
 | `VARDIFF_TARGET_SHARES` | จำนวน share เป้าหมายต่อรอบสำหรับ vardiff | `12` |
+| `LOG_SHARES` | log ทุก share ที่ถูก accept (บรรทัด `[Share] accept`); share ที่ถูก reject จะ log เสมอ | `false` |
 | `RPC_HOST` | host ของ Bitcoin RPC | `127.0.0.1` |
 | `RPC_PORT` | พอร์ต Bitcoin RPC | `8332` |
 | `RPC_USER` | RPC username | `bitcoinrpc` |
@@ -144,6 +145,20 @@ docker compose down
 - `STRATUM_IDLE_TIMEOUT` (วินาที, ค่าเริ่มต้น `0` = ปิด) ใช้ตัด connection ที่ไม่ส่งข้อมูลเข้ามาเลยตามเวลาที่กำหนด
 - `STRATUM_MAX_CONNS` (ค่าเริ่มต้น `0` = ไม่จำกัด) ใช้จำกัดจำนวน connection ที่ active พร้อมกัน
 - ตอนปิดโปรแกรม (Ctrl+C / SIGTERM) ระบบจะหยุดรับ connection ใหม่ ปิด session ของ miner และ shutdown web dashboard ให้เรียบร้อยก่อนจบ process
+
+### Share Log
+
+ทุก share ที่ถูก reject จะถูก log เสมอ เพื่อดูสาเหตุและ difficulty ที่ใช้ตัดสิน ส่วน share ที่ accept จะ log เฉพาะเมื่อตั้ง `LOG_SHARES=true`:
+
+```text
+[Share] REJECT worker=s21-01 ip=192.168.1.42 session=00000001 job=04af height=875123 reason="Low difficulty share" requiredDiff=4096 achievedDiff=512.00 jobAge=3s candidates=ext2:1 ntime:77 nonce:1 version:1 currentJob=04b2 jobsBehind=3
+[Share] accept worker=s21-01 ip=192.168.1.42 session=00000001 job=04af height=875123 requiredDiff=4096 achievedDiff=5120.00
+```
+
+- `requiredDiff` คือ difficulty ที่ pool ใช้ตัดสิน ณ ตอนนั้น (อาจเป็น `PreviousDiff` ชั่วคราวหาก vardiff เพิ่งลด diff) และ `achievedDiff` คือ diff ที่ share นั้นทำได้จริง
+- `reason` เป็นข้อความที่ส่งกลับไปให้ miner: `Low difficulty share`, `Duplicate share`, `Stale / Job not found`, หรือเหตุผลจากการบล็อก worker
+- `jobAge` คืออายุของ job ที่ miner ใช้ส่งงาน (แสดง `n/a` เมื่อไม่พบ job) และ `currentJob`/`jobsBehind` จะแสดงเฉพาะกรณีส่ง job เก่ามาที่ server ไม่รู้จัก
+- miner ที่ขุดด้วย diff ไม่ตรงกับที่ pool กำหนดจะเป็นสาเหตุหลักของ `Low difficulty share`; pool รับ `mining.suggest_difficulty` แล้วตอบรับ แต่ยังคงใช้ diff ของตัวเอง และจะ log ค่าที่ miner เสนอมาให้เห็น
 
 ## Connecting Miners
 
