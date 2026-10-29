@@ -22,3 +22,6 @@ Thumbs.db
 
 # Go test files stay local only
 *_test.go
+
+# Runtime pool state (created at startup)
+data/
