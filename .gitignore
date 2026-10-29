@@ -19,3 +19,6 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# Go test files stay local only
+*_test.go
