@@ -6,34 +6,33 @@
   <title>ntpool - Node Type SHA-256 Solo Mining Pool</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="theme-modern.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="terminal.css">
 </head>
-<body data-theme="modern">
-  <div class="background-glow"></div>
+<body data-theme="terminal">
+  <div class="crt-overlay" aria-hidden="true"></div>
 
   <main class="dashboard-container">
     <aside class="sidebar-modern card">
       <div class="brand-panel">
-        <div class="brand-mark">⚡</div>
+        <div class="brand-mark">>_</div>
         <div>
-          <div class="brand-name">NT Pool</div>
-          <small>Mining monitor</small>
+          <div class="brand-name">NTPOOL</div>
+          <small>solo sha-256 console</small>
         </div>
       </div>
 
       <nav class="sidebar-menu" aria-label="Sidebar navigation">
-        <button class="nav-item active" data-tab="blocks" type="button"><span class="nav-icon">◈</span>Overview</button>
-        <button class="nav-item" data-tab="workers" type="button"><span class="nav-icon">⛏</span>Workers</button>
-        <button class="nav-item" data-tab="blocks" type="button"><span class="nav-icon">▣</span>Blocks</button>
-        <button class="nav-item" data-tab="health" type="button"><span class="nav-icon">⚙</span>Health</button>
-        <button class="nav-item" data-tab="alerts" type="button"><span class="nav-icon">⚑</span>Alerts</button>
+        <button class="nav-item active" data-tab="blocks" type="button"><span class="nav-idx">01</span>Overview</button>
+        <button class="nav-item" data-tab="workers" type="button"><span class="nav-idx">02</span>Workers</button>
+        <button class="nav-item" data-tab="activity" type="button"><span class="nav-idx">03</span>Activity</button>
+        <button class="nav-item" data-tab="health" type="button"><span class="nav-idx">04</span>Health</button>
+        <button class="nav-item" data-tab="alerts" type="button"><span class="nav-idx">05</span>Alerts</button>
       </nav>
 
       <div class="sidebar-health-card">
         <div class="sidebar-health-header">
-          <span class="mini-label">🩺 Pool Health</span>
+          <span class="mini-label">sys.status</span>
         </div>
         <div class="health-item sidebar-health-item">
           <span class="label">Bitcoin RPC</span>
@@ -66,10 +65,22 @@
     </aside>
 
     <div class="main-modern">
+      <div class="console-bar">
+        <div class="console-prompt">
+          <span class="who">ntpool@node</span><span class="muted">:~$</span>
+          <span class="cmd">./monitor --live --algo=sha256d</span>
+          <span class="caret" aria-hidden="true"></span>
+        </div>
+        <div class="console-right">
+          <span id="console-link" class="console-chip offline"><span class="dot"></span><span class="js-link-label">LINK LOST</span></span>
+          <span id="console-clock">--:--:--</span>
+        </div>
+      </div>
+
       <!-- Hero Stats Grid -->
       <section class="stats-grid">
         <div class="card stat-card">
-          <div class="card-icon">🚀</div>
+          <div class="card-icon">HS</div>
           <div class="stat-meta">
             <span class="label">Pool Hashrate (1m)</span>
             <h2 id="pool-hashrate" class="stat-value">0.00 TH/s</h2>
@@ -77,7 +88,7 @@
         </div>
 
         <div class="card stat-card">
-          <div class="card-icon">⛏️</div>
+          <div class="card-icon">WRK</div>
           <div class="stat-meta">
             <span class="label">Active Workers</span>
             <h2 id="connected-workers" class="stat-value">0</h2>
@@ -85,7 +96,7 @@
         </div>
 
         <div class="card stat-card">
-          <div class="card-icon">📦</div>
+          <div class="card-icon">BLK</div>
           <div class="stat-meta">
             <span class="label">Block Height</span>
             <h2 id="block-height" class="stat-value">0</h2>
@@ -93,7 +104,7 @@
         </div>
 
         <div class="card stat-card">
-          <div class="card-icon">🌐</div>
+          <div class="card-icon">ND</div>
           <div class="stat-meta">
             <span class="label">Network Difficulty</span>
             <h2 id="network-diff" class="stat-value">0.00</h2>
@@ -101,7 +112,7 @@
         </div>
 
         <div class="card stat-card">
-          <div class="card-icon">🏆</div>
+          <div class="card-icon">OK</div>
           <div class="stat-meta">
             <span class="label">Blocks Mined</span>
             <h2 id="blocks-count" class="stat-value">0</h2>
@@ -121,7 +132,7 @@
 
       <section class="blocks-section card latest-block-horizontal">
         <div class="table-header">
-          <h3>💎 Latest Solo Block</h3>
+          <h3>latest.solo_block</h3>
         </div>
         <div id="blocks-list" class="blocks-list horizontal-block-card">
           <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
@@ -130,7 +141,7 @@
 
       <section class="analytics-section card">
         <div class="table-header">
-          <h3>📊 Worker Performance Summary</h3>
+          <h3>worker.performance</h3>
         </div>
         <div class="analytics-grid">
           <div class="mini-stat">
@@ -158,11 +169,11 @@
 
       <section class="card dashboard-tab-panel">
         <div class="tab-header">
-          <button class="tab-button active" data-tab="blocks">🧾 Block History</button>
-          <button class="tab-button" data-tab="health">📈 Health Timeline</button>
-          <button class="tab-button" data-tab="activity">🧭 Recent Pool Activity</button>
-          <button class="tab-button" data-tab="alerts">🚨 Operational Alerts</button>
-          <button class="tab-button" data-tab="workers">⚡ Workers</button>
+          <button class="tab-button active" data-tab="blocks">block.log</button>
+          <button class="tab-button" data-tab="health">health.timeline</button>
+          <button class="tab-button" data-tab="activity">pool.activity</button>
+          <button class="tab-button" data-tab="alerts">alerts</button>
+          <button class="tab-button" data-tab="workers">workers</button>
         </div>
 
         <div id="tab-blocks" class="tab-content active">
@@ -239,7 +250,7 @@
     <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="worker-modal-title">
       <div class="modal-header">
         <h3 id="worker-modal-title">Worker Actions</h3>
-        <button class="modal-close" data-close-modal="true" aria-label="Close">✕</button>
+        <button class="modal-close" data-close-modal="true" aria-label="Close">[x]</button>
       </div>
       <div class="modal-body">
         <p id="worker-modal-summary">Select an action for this miner.</p>

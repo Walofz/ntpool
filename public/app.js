@@ -149,10 +149,33 @@ async function loadInitialStats() {
   }
 }
 
-document.body.dataset.theme = 'modern';
+document.body.dataset.theme = 'terminal';
+
+function setLinkState(state) {
+  const chip = document.getElementById('console-link');
+  const label = chip ? chip.querySelector('.js-link-label') : null;
+  if (!chip) return;
+  chip.classList.remove('online', 'offline');
+  chip.classList.add(state === 'online' ? 'online' : 'offline');
+  if (label) label.textContent = state === 'online' ? 'LINK OK' : 'LINK LOST';
+}
+
+function startConsoleClock() {
+  const clock = document.getElementById('console-clock');
+  if (!clock) return;
+  const tick = () => {
+    clock.textContent = new Date().toLocaleTimeString([], { hour12: false });
+  };
+  tick();
+  setInterval(tick, 1000);
+}
 
 function initWebSocket() {
   socket = new WebSocket(wsUrl);
+
+  socket.onopen = () => {
+    setLinkState('online');
+  };
 
   socket.onmessage = (event) => {
     try {
@@ -164,10 +187,12 @@ function initWebSocket() {
   };
 
   socket.onerror = () => {
+    setLinkState('offline');
     loadInitialStats();
   };
 
   socket.onclose = () => {
+    setLinkState('offline');
     loadInitialStats();
     setTimeout(initWebSocket, 3000);
   };
@@ -604,5 +629,6 @@ document.querySelectorAll('[data-alert-test]').forEach((button) => {
 });
 
 // Initialize
+startConsoleClock();
 loadInitialStats();
 initWebSocket();

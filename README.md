@@ -34,7 +34,7 @@ ntpool/
 ├── public/
 │   ├── app.js               # Dashboard frontend logic
 │   ├── index.html           # Dashboard UI
-│   └── style.css            # Dashboard styles
+│   └── terminal.css         # Dashboard terminal-console styles
 ├── stratum/
 │   ├── server.go            # Stratum server and share validation flow
 │   └── session.go           # Session stats, vardiff, best share tracking
