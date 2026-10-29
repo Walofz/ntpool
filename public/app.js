@@ -107,16 +107,51 @@ async function handleWorkerAction(sessionId, action) {
   closeWorkerActionModal();
 }
 
+const PANEL_TITLES = {
+  blocks: 'block.log',
+  workers: 'worker.roster',
+  activity: 'pool.activity',
+  health: 'health.timeline',
+  alerts: 'alerts'
+};
+
 function setActiveTab(tabName) {
-  document.querySelectorAll('.tab-button').forEach((button) => {
-    button.classList.toggle('active', button.dataset.tab === tabName);
-  });
+  if (!PANEL_TITLES[tabName]) {
+    closePanelModal();
+    return;
+  }
+
   document.querySelectorAll('.nav-item').forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === tabName);
   });
   document.querySelectorAll('.tab-content').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `tab-${tabName}`);
   });
+
+  const modal = document.getElementById('panel-modal');
+  const title = document.getElementById('panel-modal-title');
+  if (!modal) return;
+
+  if (title) title.textContent = PANEL_TITLES[tabName];
+  modal.dataset.panel = tabName;
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closePanelModal() {
+  document.querySelectorAll('.nav-item').forEach((button) => {
+    button.classList.toggle('active', button.dataset.tab === 'overview');
+  });
+  document.querySelectorAll('.tab-content').forEach((panel) => {
+    panel.classList.remove('active');
+  });
+
+  const modal = document.getElementById('panel-modal');
+  if (!modal) return;
+
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+  delete modal.dataset.panel;
 }
 
 function openWorkerActionModal(worker) {
@@ -571,16 +606,35 @@ function updateDashboard(data) {
   }
 }
 
-document.querySelectorAll('.tab-button').forEach((button) => {
+document.querySelectorAll('.nav-item').forEach((button) => {
   button.addEventListener('click', () => {
     setActiveTab(button.dataset.tab);
   });
 });
 
-document.querySelectorAll('.nav-item').forEach((button) => {
+document.querySelectorAll('[data-open-panel]').forEach((button) => {
   button.addEventListener('click', () => {
-    setActiveTab(button.dataset.tab);
+    setActiveTab(button.dataset.openPanel);
   });
+});
+
+document.querySelectorAll('[data-close-panel="true"]').forEach((button) => {
+  button.addEventListener('click', () => {
+    closePanelModal();
+  });
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+
+  const workerModal = document.getElementById('worker-action-modal');
+  if (workerModal && !workerModal.classList.contains('hidden')) {
+    closeWorkerActionModal();
+    return;
+  }
+
+  const modal = document.getElementById('panel-modal');
+  if (modal && !modal.classList.contains('hidden')) closePanelModal();
 });
 
 document.querySelectorAll('[data-close-modal="true"]').forEach((button) => {

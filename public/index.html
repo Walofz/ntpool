@@ -23,11 +23,11 @@
       </div>
 
       <nav class="sidebar-menu" aria-label="Sidebar navigation">
-        <button class="nav-item active" data-tab="blocks" type="button"><span class="nav-idx">01</span>Overview</button>
-        <button class="nav-item" data-tab="workers" type="button"><span class="nav-idx">02</span>Workers</button>
-        <button class="nav-item" data-tab="activity" type="button"><span class="nav-idx">03</span>Activity</button>
-        <button class="nav-item" data-tab="health" type="button"><span class="nav-idx">04</span>Health</button>
-        <button class="nav-item" data-tab="alerts" type="button"><span class="nav-idx">05</span>Alerts</button>
+        <button class="nav-item active" data-tab="overview" type="button"><span class="nav-idx">01</span>Overview</button>
+        <button class="nav-item" data-tab="workers" type="button"><span class="nav-idx">02</span>Workers<span class="nav-open" aria-hidden="true">[+]</span></button>
+        <button class="nav-item" data-tab="activity" type="button"><span class="nav-idx">03</span>Activity<span class="nav-open" aria-hidden="true">[+]</span></button>
+        <button class="nav-item" data-tab="health" type="button"><span class="nav-idx">04</span>Health<span class="nav-open" aria-hidden="true">[+]</span></button>
+        <button class="nav-item" data-tab="alerts" type="button"><span class="nav-idx">05</span>Alerts<span class="nav-open" aria-hidden="true">[+]</span></button>
       </nav>
 
       <div class="sidebar-health-card">
@@ -133,6 +133,7 @@
       <section class="blocks-section card latest-block-horizontal">
         <div class="table-header">
           <h3>latest.solo_block</h3>
+          <button class="panel-open-button" type="button" data-open-panel="blocks">block.log [+]</button>
         </div>
         <div id="blocks-list" class="blocks-list horizontal-block-card">
           <div class="empty-state">No solo blocks found yet. Keep hashing!</div>
@@ -166,17 +167,22 @@
           <div id="worker-analytics-list" class="analytics-list"></div>
         </div>
       </section>
+    </div>
+  </main>
 
-      <section class="card dashboard-tab-panel">
-        <div class="tab-header">
-          <button class="tab-button active" data-tab="blocks">block.log</button>
-          <button class="tab-button" data-tab="health">health.timeline</button>
-          <button class="tab-button" data-tab="activity">pool.activity</button>
-          <button class="tab-button" data-tab="alerts">alerts</button>
-          <button class="tab-button" data-tab="workers">workers</button>
-        </div>
+  <footer>
+    <p>Powered by <strong>ntpool SHA-256 Solo Engine</strong> (Node Type Pool) • Modelled after CKPool architecture • Direct Coinbase Payout</p>
+  </footer>
 
-        <div id="tab-blocks" class="tab-content active">
+  <div id="panel-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close-panel="true"></div>
+    <div class="modal-dialog modal-dialog-wide" role="dialog" aria-modal="true" aria-labelledby="panel-modal-title">
+      <div class="modal-header">
+        <h3 id="panel-modal-title">panel</h3>
+        <button class="modal-close" data-close-panel="true" aria-label="Close">[x]</button>
+      </div>
+      <div class="modal-body panel-modal-body">
+        <div id="tab-blocks" class="tab-content">
           <div id="block-history-list" class="block-history-list">
             <div class="activity-item info">
               <strong>Awaiting block history</strong>
@@ -237,13 +243,9 @@
             </table>
           </div>
         </div>
-      </section>
+      </div>
     </div>
-  </main>
-
-  <footer>
-    <p>Powered by <strong>ntpool SHA-256 Solo Engine</strong> (Node Type Pool) • Modelled after CKPool architecture • Direct Coinbase Payout</p>
-  </footer>
+  </div>
 
   <div id="worker-action-modal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" data-close-modal="true"></div>

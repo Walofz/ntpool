@@ -376,6 +376,17 @@ body {
   display: none;
 }
 
+.nav-open {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--t-text-faint);
+}
+
+.nav-item:hover .nav-open,
+.nav-item.active .nav-open {
+  color: var(--t-green-dim);
+}
+
 .sidebar-health-card {
   display: flex;
   flex-direction: column;
@@ -440,7 +451,7 @@ button {
 
 .alert-test-button,
 .modal-action,
-.tab-button {
+.panel-open-button {
   padding: 5px 10px;
   border: 1px solid var(--t-line);
   border-radius: 2px;
@@ -454,7 +465,7 @@ button {
 
 .alert-test-button:hover:not(:disabled),
 .modal-action:hover,
-.tab-button:hover {
+.panel-open-button:hover {
   color: var(--t-green);
   border-color: var(--t-green-dim);
   background: rgba(53, 255, 158, 0.06);
@@ -777,27 +788,7 @@ button {
   color: var(--t-text-faint);
 }
 
-/* Tabs --------------------------------------------------------------- */
-
-.dashboard-tab-panel {
-  padding: 0;
-  overflow: hidden;
-}
-
-.tab-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 10px 13px;
-  border-bottom: 1px solid var(--t-line);
-  background: var(--t-panel);
-}
-
-.tab-button.active {
-  color: var(--t-green);
-  border-color: var(--t-green-dim);
-  background: rgba(53, 255, 158, 0.08);
-}
+/* Panels (rendered inside the panel modal) ---------------------------- */
 
 .tab-content {
   display: none;
@@ -1098,6 +1089,20 @@ tbody tr:hover td {
   box-shadow: 0 0 0 1px rgba(53, 255, 158, 0.14), 0 24px 60px rgba(0, 0, 0, 0.7);
 }
 
+.modal-dialog-wide {
+  display: flex;
+  flex-direction: column;
+  width: min(1180px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+}
+
+.panel-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -1290,11 +1295,6 @@ footer strong {
 
   .stat-value {
     font-size: 17px;
-  }
-
-  .tab-header {
-    flex-wrap: nowrap;
-    overflow-x: auto;
   }
 
   .block-meta-grid {
