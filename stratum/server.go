@@ -586,6 +586,12 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 		return
 	}
 
+	if blocker := session.SubmitBlocker(); blocker != "" {
+		session.RejectedShares++
+		s.sendResponse(session, id, false, map[string]interface{}{"code": 24, "message": blocker})
+		return
+	}
+
 	jobId, _ := params[1].(string)
 	extranonce2Hex, _ := params[2].(string)
 	nTimeHex, _ := params[3].(string)
@@ -707,22 +713,29 @@ primaryLoop:
 			Symbol:    s.cfg.CoinSymbol,
 		}
 
+		if s.bitcoinRpc == nil {
+			log.Printf("[Block] RPC client is not configured, block #%d (%s) was not submitted and is not recorded", job.BlockHeight, blockHashHex)
+			return
+		}
+
+		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData)
+		res, err := s.bitcoinRpc.SubmitBlock(blockHex)
+		log.Printf("[RPC submitblock] Result: %v (err: %v)", res, err)
+
+		if !s.isSubmitBlockAccepted(res, err) {
+			log.Printf("[Block] Node did not accept block #%d (%s), result: %v err: %v - not recorded as found", job.BlockHeight, blockHashHex, res, err)
+			return
+		}
+
 		s.mu.Lock()
 		s.FoundBlocks = append([]FoundBlock{blockRecord}, s.FoundBlocks...)
 		s.mu.Unlock()
 		s.saveFoundBlocks()
 
-		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData)
-		if s.bitcoinRpc != nil {
-			res, err := s.bitcoinRpc.SubmitBlock(blockHex)
-			log.Printf("[RPC submitblock] Result: %v (err: %v)", res, err)
-			if s.isSubmitBlockAccepted(res, err) {
-				s.resetAllBestShares()
-				s.notifyStats()
-				go s.notifyBlockFound(blockRecord)
-				go s.notifyDiscordBlockFound(blockRecord)
-			}
-		}
+		s.resetAllBestShares()
+		s.notifyStats()
+		go s.notifyBlockFound(blockRecord)
+		go s.notifyDiscordBlockFound(blockRecord)
 	}
 }
 

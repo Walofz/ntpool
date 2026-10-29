@@ -96,6 +96,28 @@ func (s *StratumSession) Resume() {
 	s.BannedReason = ""
 }
 
+// SubmitBlocker returns the rejection message for sessions that must not submit shares.
+// An empty string means the worker is allowed to submit.
+func (s *StratumSession) SubmitBlocker() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch {
+	case s.IsBanned:
+		if s.BannedReason != "" {
+			return "Banned: " + s.BannedReason
+		}
+		return "Banned"
+	case s.IsDisabled:
+		if s.DisabledReason != "" {
+			return "Worker disabled: " + s.DisabledReason
+		}
+		return "Worker disabled"
+	default:
+		return ""
+	}
+}
+
 func (s *StratumSession) GetSessionStatus() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -166,6 +188,13 @@ func (s *StratumSession) RecordShare(cfg *config.Config, targetDiff float64, sha
 			newDiff = mathMax(1, mathRound(newDiff))
 		} else {
 			newDiff = mathRound(newDiff/32.0) * 32.0
+		}
+
+		if cfg.MinDiff > 0 && newDiff < cfg.MinDiff {
+			newDiff = cfg.MinDiff
+		}
+		if cfg.MaxDiff > 0 && newDiff > cfg.MaxDiff {
+			newDiff = cfg.MaxDiff
 		}
 
 		if newDiff != s.CurrentDiff {
