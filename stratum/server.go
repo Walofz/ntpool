@@ -608,6 +608,12 @@ func (s *StratumServer) handleSubmit(session *StratumSession, id interface{}, pa
 		return
 	}
 
+	if session.IsDuplicateShare(shareKey(jobId, extranonce2Hex, nTimeHex, nonceHex, versionBitsHex)) {
+		session.RejectedShares++
+		s.sendResponse(session, id, false, map[string]interface{}{"code": 22, "message": "Duplicate share"})
+		return
+	}
+
 	requiredDiff, _ := session.EffectiveSubmitDiff(vardiffSubmitGraceWindow)
 	minerTarget := crypto.DifficultyToTarget(requiredDiff)
 	networkTarget := crypto.NbitsToTarget(job.NBitsHex)

@@ -42,6 +42,9 @@ type StratumSession struct {
 	IsBanned              bool
 	DisabledReason        string
 	BannedReason          string
+
+	dedupOnce sync.Once
+	deduper   *shareDeduper
 }
 
 func NewStratumSession(id string, conn net.Conn, extranonce1 string, defaultDiff float64) *StratumSession {
@@ -94,6 +97,17 @@ func (s *StratumSession) Resume() {
 	s.IsBanned = false
 	s.DisabledReason = ""
 	s.BannedReason = ""
+}
+
+// IsDuplicateShare reports whether the worker already submitted this share.
+// The first call for a key returns false and remembers the key.
+func (s *StratumSession) IsDuplicateShare(key string) bool {
+	s.dedupOnce.Do(func() {
+		if s.deduper == nil {
+			s.deduper = newShareDeduper(defaultShareCacheSize)
+		}
+	})
+	return s.deduper.SeenOrAdd(key)
 }
 
 // SubmitBlocker returns the rejection message for sessions that must not submit shares.
