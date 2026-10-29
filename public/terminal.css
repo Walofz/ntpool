@@ -476,12 +476,6 @@ button {
   cursor: not-allowed;
 }
 
-.sidebar-health-item .alert-test-button {
-  grid-column: 1 / -1;
-  justify-self: start;
-  margin-top: 6px;
-}
-
 /* Health states --------------------------------------------------------- */
 
 .health-status {
@@ -1026,6 +1020,64 @@ tbody tr:hover td {
 .alert-item.info strong,
 .activity-item.info strong {
   color: var(--t-cyan);
+}
+
+/* Notification channels (inside the alerts panel) ---------------------- */
+
+.notification-panel {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--t-line);
+}
+
+.notification-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 10px;
+  margin-bottom: 10px;
+}
+
+.notification-panel-header small {
+  font-size: 10.5px;
+  color: var(--t-text-faint);
+}
+
+.notification-channels {
+  display: grid;
+  gap: 8px;
+}
+
+.notification-channel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: baseline;
+  padding: 9px 12px;
+  border: 1px solid var(--t-line-soft);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.notification-channel .label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t-text-faint);
+}
+
+.notification-channel small {
+  grid-column: 1 / -1;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--t-text-faint);
+  overflow-wrap: anywhere;
+}
+
+.notification-channel .alert-test-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 7px;
 }
 
 .timeline-item {

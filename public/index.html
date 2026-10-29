@@ -49,18 +49,6 @@
           <strong id="pool-health" class="status-offline">Degraded</strong>
           <small>Operational summary</small>
         </div>
-        <div class="health-item sidebar-health-item">
-          <span class="label">ntfy Notifications</span>
-          <strong id="ntfy-alert-status" class="health-status neutral">Loading</strong>
-          <small id="ntfy-alert-detail">Checking configuration</small>
-          <button class="alert-test-button" type="button" data-alert-test="ntfy">Send test</button>
-        </div>
-        <div class="health-item sidebar-health-item">
-          <span class="label">Discord Notifications</span>
-          <strong id="discord-alert-status" class="health-status neutral">Loading</strong>
-          <small id="discord-alert-detail">Checking configuration</small>
-          <button class="alert-test-button" type="button" data-alert-test="discord">Send test</button>
-        </div>
       </div>
     </aside>
 
@@ -214,6 +202,27 @@
             <div class="alert-item success">
               <strong>Everything looks healthy.</strong>
               <span>No operational warnings at the moment.</span>
+            </div>
+          </div>
+
+          <div class="notification-panel">
+            <div class="notification-panel-header">
+              <span class="mini-label">notify.channels</span>
+              <small>Send a test payload to confirm each webhook actually delivers.</small>
+            </div>
+            <div class="notification-channels">
+              <div class="notification-channel">
+                <span class="label">ntfy</span>
+                <strong id="ntfy-alert-status" class="health-status neutral">Loading</strong>
+                <small id="ntfy-alert-detail">Checking configuration</small>
+                <button class="alert-test-button" type="button" data-alert-test="ntfy">Send test</button>
+              </div>
+              <div class="notification-channel">
+                <span class="label">discord</span>
+                <strong id="discord-alert-status" class="health-status neutral">Loading</strong>
+                <small id="discord-alert-detail">Checking configuration</small>
+                <button class="alert-test-button" type="button" data-alert-test="discord">Send test</button>
+              </div>
             </div>
           </div>
         </div>
