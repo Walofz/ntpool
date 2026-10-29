@@ -3,10 +3,11 @@
 :root {
   color-scheme: dark;
   --t-bg: #04070a;
-  --t-panel: #070d11;
-  --t-panel-2: #0a1217;
-  --t-line: #143528;
-  --t-line-soft: #0e2119;
+  --t-panel: #161e24;
+  --t-panel-2: #1c262e;
+  --t-panel-inset: #0d1317;
+  --t-line: #27543f;
+  --t-line-soft: #1e4331;
   --t-text: #d8e9df;
   --t-text-dim: #82a08f;
   --t-text-faint: #4e6a5c;
@@ -588,7 +589,7 @@ button {
 .block-card {
   padding: 13px 15px;
   border: 1px solid var(--t-line-soft);
-  background: var(--t-panel);
+  background: var(--t-panel-inset);
 }
 
 .block-title {
@@ -708,7 +709,7 @@ button {
 .mini-stat {
   padding: 10px 12px;
   border: 1px solid var(--t-line-soft);
-  background: var(--t-panel);
+  background: var(--t-panel-inset);
 }
 
 .mini-stat strong {
@@ -742,7 +743,7 @@ button {
 .analytics-item {
   padding: 9px 11px;
   border: 1px solid var(--t-line-soft);
-  background: var(--t-panel);
+  background: var(--t-panel-inset);
 }
 
 .analytics-head {
