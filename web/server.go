@@ -400,7 +400,7 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 		"connectedWorkers":   len(sessions),
 		"poolHashrate1m":     poolHashrate1m,
 		"poolHashrate5m":     poolHashrate5m,
-		"blocksFound":        w.stratumServer.FoundBlocks,
+		"blocksFound":        w.stratumServer.GetFoundBlocks(),
 		"workers":            workersList,
 		"rpcHealth":          rpcHealth,
 		"zmqHealth":          zmqHealth,

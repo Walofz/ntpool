@@ -38,6 +38,9 @@ type FoundBlock struct {
 	Symbol    string    `json:"symbol"`
 }
 
+// maxFoundBlocks caps the persisted found block history.
+const maxFoundBlocks = 1000
+
 type NotificationChannelStatus struct {
 	Enabled       bool       `json:"enabled"`
 	Configured    bool       `json:"configured"`
@@ -48,13 +51,15 @@ type NotificationChannelStatus struct {
 
 type StratumServer struct {
 	mu                 sync.RWMutex
+	blocksMu           sync.RWMutex
+	saveMu             sync.Mutex
 	notificationMu     sync.RWMutex
 	cfg                *config.Config
 	jobManager         *pool.JobManager
 	bitcoinRpc         *bitcoin.BitcoinRpcClient
 	sessions           map[string]*StratumSession
 	sessionCounter     int64
-	FoundBlocks        []FoundBlock
+	foundBlocks        []FoundBlock
 	StatsUpdated       chan struct{}
 	blocksFilePath     string
 	notificationStatus map[string]NotificationChannelStatus
@@ -128,40 +133,79 @@ func (s *StratumServer) finishNotificationAttempt(channel string, succeeded bool
 }
 
 func (s *StratumServer) loadFoundBlocks() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	path := s.blocksFilePath
+	_ = os.MkdirAll(filepath.Dir(path), 0755)
 
-	dir := filepath.Dir(s.blocksFilePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return
-	}
-
-	if data, err := os.ReadFile(s.blocksFilePath); err == nil {
+	if data, err := os.ReadFile(path); err == nil {
 		var blocks []FoundBlock
 		if err := json.Unmarshal(data, &blocks); err == nil {
-			s.FoundBlocks = blocks
+			if blocks == nil {
+				blocks = []FoundBlock{}
+			}
+			blocks = trimFoundBlocks(blocks)
+			s.blocksMu.Lock()
+			s.foundBlocks = blocks
+			s.blocksMu.Unlock()
 			log.Printf("[Stratum] Loaded %d persisted found blocks from disk.", len(blocks))
 			return
 		}
+		log.Printf("[Stratum] Failed to parse %s, starting with an empty history: %v", path, err)
 	}
 
-	s.FoundBlocks = []FoundBlock{}
-	initialData, _ := json.MarshalIndent(s.FoundBlocks, "", "  ")
-	_ = os.WriteFile(s.blocksFilePath, initialData, 0644)
-	log.Printf("[Stratum] Initialized new found_blocks.json file at %s", s.blocksFilePath)
+	s.blocksMu.Lock()
+	s.foundBlocks = []FoundBlock{}
+	s.blocksMu.Unlock()
+	s.saveFoundBlocks()
+	log.Printf("[Stratum] Initialized new found_blocks.json file at %s", path)
+}
+
+// GetFoundBlocks returns a copy of the found block history, newest first.
+func (s *StratumServer) GetFoundBlocks() []FoundBlock {
+	s.blocksMu.RLock()
+	defer s.blocksMu.RUnlock()
+
+	blocks := make([]FoundBlock, len(s.foundBlocks))
+	copy(blocks, s.foundBlocks)
+	return blocks
+}
+
+// recordFoundBlock prepends a block to the history and persists it.
+func (s *StratumServer) recordFoundBlock(block FoundBlock) {
+	s.blocksMu.Lock()
+	s.foundBlocks = trimFoundBlocks(append([]FoundBlock{block}, s.foundBlocks...))
+	s.blocksMu.Unlock()
+
+	s.saveFoundBlocks()
 }
 
 func (s *StratumServer) saveFoundBlocks() {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.blocksMu.RLock()
+	blocks := make([]FoundBlock, len(s.foundBlocks))
+	copy(blocks, s.foundBlocks)
+	path := s.blocksFilePath
+	s.blocksMu.RUnlock()
 
-	dir := filepath.Dir(s.blocksFilePath)
-	_ = os.MkdirAll(dir, 0755)
-
-	data, err := json.MarshalIndent(s.FoundBlocks, "", "  ")
-	if err == nil {
-		_ = os.WriteFile(s.blocksFilePath, data, 0644)
+	data, err := json.MarshalIndent(blocks, "", "  ")
+	if err != nil {
+		log.Printf("[Stratum] Failed to encode found blocks: %v", err)
+		return
 	}
+
+	// Serialized so concurrent saves cannot interleave partial writes.
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
+
+	_ = os.MkdirAll(filepath.Dir(path), 0755)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Printf("[Stratum] Failed to persist found blocks to %s: %v", path, err)
+	}
+}
+
+func trimFoundBlocks(blocks []FoundBlock) []FoundBlock {
+	if len(blocks) > maxFoundBlocks {
+		return blocks[:maxFoundBlocks]
+	}
+	return blocks
 }
 
 func (s *StratumServer) resetAllBestShares() {
@@ -733,10 +777,7 @@ primaryLoop:
 			return
 		}
 
-		s.mu.Lock()
-		s.FoundBlocks = append([]FoundBlock{blockRecord}, s.FoundBlocks...)
-		s.mu.Unlock()
-		s.saveFoundBlocks()
+		s.recordFoundBlock(blockRecord)
 
 		s.resetAllBestShares()
 		s.notifyStats()
