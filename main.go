@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,6 +21,13 @@ func main() {
 	log.Printf("==========================================================")
 	log.Printf("   🚀 %s (Go High-Performance Engine)", cfg.PoolName)
 	log.Printf("==========================================================")
+
+	if !pool.IsValidAddress(cfg.WalletAddress) {
+		log.Printf("[Config] ERROR: WALLET_ADDRESS %q does not decode to a spendable output script - block rewards would be sent to a burn address. Fix WALLET_ADDRESS in .env", cfg.WalletAddress)
+	}
+	if strings.TrimSpace(cfg.PoolFeeAddress) != "" && !pool.IsValidAddress(cfg.PoolFeeAddress) {
+		log.Printf("[Config] ERROR: POOL_FEE_ADDRESS %q does not decode to a spendable output script - the pool fee would be burned. Fix POOL_FEE_ADDRESS in .env", cfg.PoolFeeAddress)
+	}
 
 	jobManager := pool.NewJobManager(cfg)
 	bitcoinRpc := bitcoin.NewBitcoinRpcClient(cfg)

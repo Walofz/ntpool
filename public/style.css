@@ -415,6 +415,11 @@ body {
   background: rgba(0, 242, 254, 0.08);
 }
 
+.activity-item.error {
+  border-color: rgba(255, 82, 82, 0.45);
+  background: rgba(255, 82, 82, 0.1);
+}
+
 .alerts-section {
   display: flex;
   flex-direction: column;
@@ -458,6 +463,11 @@ body {
 .alert-item.info {
   border-color: rgba(0, 242, 254, 0.35);
   background: rgba(0, 242, 254, 0.08);
+}
+
+.alert-item.error {
+  border-color: rgba(255, 82, 82, 0.45);
+  background: rgba(255, 82, 82, 0.1);
 }
 
 .analytics-section {

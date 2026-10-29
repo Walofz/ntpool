@@ -41,6 +41,18 @@ function truncateAddress(addr) {
   return addr;
 }
 
+// Miner-supplied values (worker name, address) end up in innerHTML templates,
+// so they must be escaped before interpolation.
+function escapeHtml(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
 function formatUptime(seconds) {
   if (!seconds || seconds <= 0) return '0m';
   const mins = Math.floor(seconds / 60);
@@ -291,9 +303,9 @@ function updateDashboard(data) {
       `;
     } else {
       alertsList.innerHTML = alerts.map(alert => `
-        <div class="alert-item ${alert.severity || 'warning'}">
-          <strong>${alert.title || 'Operational alert'}</strong>
-          <span>${alert.detail || 'Check the pool for issues.'}</span>
+        <div class="alert-item ${escapeHtml(alert.severity || 'warning')}">
+          <strong>${escapeHtml(alert.title || 'Operational alert')}</strong>
+          <span>${escapeHtml(alert.detail || 'Check the pool for issues.')}</span>
         </div>
       `).join('');
     }
@@ -312,9 +324,9 @@ function updateDashboard(data) {
       activityList.innerHTML = activityLog.slice(-5).reverse().map(event => {
         const time = new Date(event.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         return `
-          <div class="activity-item ${event.severity || 'info'}">
-            <strong>${event.title || 'Pool activity'}</strong>
-            <span>${event.detail || 'No further details.'} • ${time}</span>
+          <div class="activity-item ${escapeHtml(event.severity || 'info')}">
+            <strong>${escapeHtml(event.title || 'Pool activity')}</strong>
+            <span>${escapeHtml(event.detail || 'No further details.')} • ${time}</span>
           </div>
         `;
       }).join('');
@@ -388,8 +400,8 @@ function updateDashboard(data) {
         return `
           <div class="analytics-item">
             <div class="analytics-head">
-              <span>#${idx + 1} ${w.workerName || 'worker'}</span>
-              <span class="${statusClass(w.status)}">${(w.status || 'active')}</span>
+              <span>#${idx + 1} ${escapeHtml(w.workerName || 'worker')}</span>
+              <span class="${statusClass(w.status)}">${escapeHtml(w.status || 'active')}</span>
             </div>
             <div class="analytics-meta">
               <span>${formatHashrate(displayRate)}</span>
@@ -414,10 +426,10 @@ function updateDashboard(data) {
         const workerKey = `worker-${w.sessionId || w.workerName || w.address || 'anon'}`;
         const displayRate = smoothHashrateValue(workerKey, w.hashrate1m || 0);
         return `
-          <tr class="worker-row" data-session-id="${w.sessionId}" data-worker-name="${(w.workerName || 'worker').replace(/"/g, '&quot;')}" data-worker-address="${(w.address || '').replace(/"/g, '&quot;')}" data-worker-status="${w.status || 'active'}">
-            <td class="mono worker-select" title="${w.address || ''}" data-session-id="${w.sessionId}">${truncateAddress(w.address)}</td>
-            <td class="worker-select" data-session-id="${w.sessionId}"><strong>${w.workerName || 'worker'}</strong></td>
-            <td><span class="${statusClass(w.status)}">${w.status || 'active'}</span></td>
+          <tr class="worker-row" data-session-id="${escapeHtml(w.sessionId)}" data-worker-name="${escapeHtml(w.workerName || 'worker')}" data-worker-address="${escapeHtml(w.address || '')}" data-worker-status="${escapeHtml(w.status || 'active')}">
+            <td class="mono worker-select" title="${escapeHtml(w.address || '')}" data-session-id="${escapeHtml(w.sessionId)}">${escapeHtml(truncateAddress(w.address))}</td>
+            <td class="worker-select" data-session-id="${escapeHtml(w.sessionId)}"><strong>${escapeHtml(w.workerName || 'worker')}</strong></td>
+            <td><span class="${statusClass(w.status)}">${escapeHtml(w.status || 'active')}</span></td>
             <td class="mono">${w.difficulty}</td>
             <td class="mono">${formatHashrate(displayRate)}</td>
             <td class="mono">${w.acceptedShares || 0}</td>
@@ -473,7 +485,7 @@ function updateDashboard(data) {
       <div class="block-card latest-block-card">
         <div class="block-title">
           <span>Latest block</span>
-          <span>+${latestBlock.reward} ${latestBlock.symbol || coinSymbol}</span>
+          <span>+${escapeHtml(latestBlock.reward)} ${escapeHtml(latestBlock.symbol || coinSymbol)}</span>
         </div>
 
         <div class="block-metric">
@@ -483,13 +495,13 @@ function updateDashboard(data) {
 
         <div class="block-metric">
           <span class="block-label">Block hash</span>
-          <strong>${latestBlock.hash || 'Unknown hash'}</strong>
+          <strong>${escapeHtml(latestBlock.hash || 'Unknown hash')}</strong>
         </div>
 
         <div class="block-meta-grid">
           <div>
             <span class="block-label">Found by</span>
-            <strong>${minerAddress || 'Unknown miner'} / ${minerName || 'Unknown worker'}</strong>
+            <strong>${escapeHtml(minerAddress || 'Unknown miner')} / ${escapeHtml(minerName || 'Unknown worker')}</strong>
           </div>
           <div>
             <span class="block-label">Passed</span>
@@ -521,9 +533,9 @@ function updateDashboard(data) {
           <tbody>
             ${allBlocks.map((block) => `
               <tr>
-                <td class="height">#${block.height}</td>
-                <td class="hash">${block.hash || 'Unknown hash'}</td>
-                <td class="miner">${(block.miner ? truncateAddress(block.miner) : 'Unknown')} / ${block.worker || 'worker'}</td>
+                <td class="height">#${escapeHtml(block.height)}</td>
+                <td class="hash">${escapeHtml(block.hash || 'Unknown hash')}</td>
+                <td class="miner">${escapeHtml(block.miner ? truncateAddress(block.miner) : 'Unknown')} / ${escapeHtml(block.worker || 'worker')}</td>
                 <td class="time">${formatTimeAgo(block.timestamp)}</td>
               </tr>
             `).join('')}

@@ -117,7 +117,7 @@ func bech32DecodeToScriptPubKey(address string) []byte {
 // AddressToScriptPubKey converts P2PKH/P2SH/Bech32 address or raw Hex script to hex scriptPubKey bytes
 func AddressToScriptPubKey(address string) []byte {
 	clean := strings.TrimSpace(address)
-	fallback, _ := hex.DecodeString("76a914000000000000000000000000000000000000000088ac")
+	fallback := burnScriptPubKey()
 
 	if clean == "" {
 		return fallback

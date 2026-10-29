@@ -329,6 +329,20 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 	}
 
 	alerts := []map[string]interface{}{}
+	if !pool.IsValidAddress(w.cfg.WalletAddress) {
+		alerts = append(alerts, map[string]interface{}{
+			"severity": "error",
+			"title":    "Payout wallet address is invalid",
+			"detail":   "WALLET_ADDRESS does not decode to a spendable script, so block rewards would be burned",
+		})
+	}
+	if feeAddr := strings.TrimSpace(w.cfg.PoolFeeAddress); feeAddr != "" && !pool.IsValidAddress(feeAddr) {
+		alerts = append(alerts, map[string]interface{}{
+			"severity": "error",
+			"title":    "Pool fee address is invalid",
+			"detail":   "POOL_FEE_ADDRESS does not decode to a spendable script, so the pool fee would be burned",
+		})
+	}
 	if rpcHealth["healthy"] != true {
 		alerts = append(alerts, map[string]interface{}{
 			"severity": "warning",
@@ -354,6 +368,12 @@ func (w *WebDashboardServer) calculatePoolStats() map[string]interface{} {
 		})
 	}
 	activityLog := []map[string]interface{}{}
+	if !pool.IsValidAddress(w.cfg.WalletAddress) {
+		activityLog = append(activityLog, buildPoolActivityEvent("error", "Payout wallet address is invalid", "WALLET_ADDRESS does not decode to a spendable script, so block rewards would be burned"))
+	}
+	if feeAddr := strings.TrimSpace(w.cfg.PoolFeeAddress); feeAddr != "" && !pool.IsValidAddress(feeAddr) {
+		activityLog = append(activityLog, buildPoolActivityEvent("error", "Pool fee address is invalid", "POOL_FEE_ADDRESS does not decode to a spendable script, so the pool fee would be burned"))
+	}
 	if rpcHealth["healthy"] != true {
 		activityLog = append(activityLog, buildPoolActivityEvent("warning", "Bitcoin RPC is stale", func() string {
 			if msg, ok := rpcHealth["lastError"].(string); ok && msg != "" {
