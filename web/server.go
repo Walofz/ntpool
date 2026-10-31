@@ -469,6 +469,14 @@ func (w *WebDashboardServer) Start() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./public")))
 
+	// Minimal single-page dashboard, kept alongside the full terminal-style console at "/".
+	mux.HandleFunc("/minimal", func(rw http.ResponseWriter, r *http.Request) {
+		http.ServeFile(rw, r, "./public/minimal.html")
+	})
+	mux.HandleFunc("/minimal/", func(rw http.ResponseWriter, r *http.Request) {
+		http.Redirect(rw, r, "/minimal", http.StatusMovedPermanently)
+	})
+
 	mux.HandleFunc("/api/stats", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(rw).Encode(w.calculatePoolStats())
