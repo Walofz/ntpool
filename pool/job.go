@@ -70,14 +70,17 @@ func (jm *JobManager) CalculateMerkleBranch(txs []map[string]interface{}) []stri
 
 	var hashes [][]byte
 	for _, tx := range txs {
-		if hashStr, ok := tx["hash"].(string); ok && hashStr != "" {
-			b, err := hex.DecodeString(hashStr)
+		// The merkle tree commits to txids. GBT's "hash" field is the wtxid
+		// (it includes witness data), so using it yields an invalid merkle root
+		// as soon as a template carries segwit transactions.
+		if txidStr, ok := tx["txid"].(string); ok && txidStr != "" {
+			b, err := hex.DecodeString(txidStr)
 			if err == nil {
 				hashes = append(hashes, crypto.ReverseBytes(b))
 				continue
 			}
-		} else if txidStr, ok := tx["txid"].(string); ok && txidStr != "" {
-			b, err := hex.DecodeString(txidStr)
+		} else if hashStr, ok := tx["hash"].(string); ok && hashStr != "" {
+			b, err := hex.DecodeString(hashStr)
 			if err == nil {
 				hashes = append(hashes, crypto.ReverseBytes(b))
 				continue
