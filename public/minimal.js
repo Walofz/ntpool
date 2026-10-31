@@ -110,6 +110,13 @@ function formatDifficulty(diff) {
   return `${v.toFixed(i === 0 ? 2 : 2)}${units[i]}`;
 }
 
+// The API sends blocksFound as a []FoundBlock list, not a number.
+function countBlocks(value) {
+  if (Array.isArray(value)) return value.length;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function formatUptime(seconds) {
   const s = Number(seconds) || 0;
   if (s <= 0) return '—';
@@ -243,8 +250,8 @@ function render(data) {
   els.height.textContent = Number(data.blockHeight || 0).toLocaleString();
   els.heightSub.textContent = `Diff ${formatDifficulty(data.networkDifficulty)}`;
 
-  els.blocks.textContent = Number(data.blocksFound || 0).toLocaleString();
-  els.blocksSub.textContent = Number(data.blocksFound || 0) > 0 ? 'solo blocks credited' : 'none yet';
+  els.blocks.textContent = countBlocks(data.blocksFound).toLocaleString();
+  els.blocksSub.textContent = countBlocks(data.blocksFound) > 0 ? 'solo blocks credited' : 'none yet';
 
   setPill(els.pillRpc, healthTone(rpc), rpc.healthy ? 'RPC' : 'RPC down');
   setPill(els.pillZmq, healthTone(zmq), zmq.healthy ? 'ZMQ' : 'ZMQ down');
@@ -261,7 +268,7 @@ function render(data) {
     // Newest-first feed: prepend oldest entry first so server order is preserved.
     (data.activityLog || []).slice().reverse().forEach((e) => pushEvent(e));
     state.lastHeight = data.blockHeight ?? null;
-    state.lastBlocks = data.blocksFound ?? 0;
+    state.lastBlocks = countBlocks(data.blocksFound);
     state.lastWorkerCount = data.connectedWorkers ?? 0;
     state.lastRpc = !!rpc.healthy;
     state.lastZmq = !!zmq.healthy;
@@ -274,7 +281,7 @@ function render(data) {
   }
   state.lastHeight = height;
 
-  const blocksFound = Number(data.blocksFound || 0);
+  const blocksFound = countBlocks(data.blocksFound);
   if (state.lastBlocks !== null && blocksFound > state.lastBlocks) {
     pushEvent({ severity: 'success', title: 'Block found', detail: `total ${blocksFound}` });
   }
