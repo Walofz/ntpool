@@ -865,7 +865,7 @@ primaryLoop:
 			return
 		}
 
-		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData)
+		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, job.DefaultWitnessCommitment != "")
 		res, err := s.bitcoinRpc.SubmitBlock(blockHex)
 		log.Printf("[RPC submitblock] Result: %v (err: %v)", res, err)
 
@@ -958,7 +958,13 @@ func fallbackWorker(name string) string {
 	return name
 }
 
-func (s *StratumServer) buildFullBlockHex(header []byte, coinbaseTxHex string, txsData []string) string {
+func (s *StratumServer) buildFullBlockHex(header []byte, coinbaseTxHex string, txsData []string, hasWitness bool) string {
+	// The coinbase is delivered to miners without witness data because its txid
+	// is what feeds the merkle root. When the template carried a witness
+	// commitment the block itself must include the witness reserved value.
+	if hasWitness {
+		coinbaseTxHex = pool.AddWitnessNonce(coinbaseTxHex)
+	}
 	var buf bytes.Buffer
 	buf.Write(header)
 

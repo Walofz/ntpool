@@ -12,6 +12,11 @@ import (
 type CoinbaseParts struct {
 	Coinb1 string
 	Coinb2 string
+	// HasWitness reports that the template supplied a witness commitment. The
+	// coinbase handed to miners stays in its legacy form so the merkle root is
+	// built from the coinbase txid; the 32-byte witness reserved value is only
+	// inserted when serializing the block (see AddWitnessNonce).
+	HasWitness bool
 }
 
 // EncodeBip34Height encodes block height into BIP34 push script bytes
@@ -262,7 +267,31 @@ func BuildCoinbaseTransaction(
 	coinb2Buf = append(coinb2Buf, lockTimeBuf...)
 
 	return CoinbaseParts{
-		Coinb1: hex.EncodeToString(coinb1Buf),
-		Coinb2: hex.EncodeToString(coinb2Buf),
+		Coinb1:     hex.EncodeToString(coinb1Buf),
+		Coinb2:     hex.EncodeToString(coinb2Buf),
+		HasWitness: len(witnessOutputBuf) > 0,
 	}
+}
+
+// AddWitnessNonce returns the coinbase transaction hex with the segwit marker,
+// flag and the 32-byte witness reserved value inserted. Witness data is not
+// covered by the txid, so the merkle root computed from the legacy form stays
+// valid, while the node accepts the block instead of failing with
+// bad-witness-nonce-size.
+func AddWitnessNonce(coinbaseTxHex string) string {
+	tx, err := hex.DecodeString(coinbaseTxHex)
+	if err != nil || len(tx) < 5 {
+		return coinbaseTxHex
+	}
+
+	// version | marker 0x00 | flag 0x01 | body without locktime | witness | locktime
+	body := tx[4 : len(tx)-4]
+	out := make([]byte, 0, len(tx)+36)
+	out = append(out, tx[:4]...)
+	out = append(out, 0x00, 0x01)
+	out = append(out, body...)
+	out = append(out, 0x01, 0x20)
+	out = append(out, make([]byte, 32)...)
+	out = append(out, tx[len(tx)-4:]...)
+	return hex.EncodeToString(out)
 }
