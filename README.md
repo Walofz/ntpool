@@ -9,6 +9,7 @@ High-performance SHA-256 solo mining pool written in Go, with Stratum V1, Overt 
 ฟีเจอร์หลัก:
 
 - Stratum V1 server สำหรับเครื่องขุด SHA-256
+- เลือกเหรียญด้วย `COIN` (`aur` / `dgb` / `btc`) แล้วปรับ parameter ของ `getblocktemplate` ให้ตรงกับ node เอง
 - รองรับ Overt AsicBoost / version rolling
 - ใช้ block template จาก RPC และ refresh งานผ่าน ZMQ พร้อม backup poller
 - Web dashboard แบบ realtime ผ่าน WebSocket
@@ -25,17 +26,21 @@ ntpool/
 │   ├── rpc.go               # Bitcoin RPC client
 │   └── zmq.go               # ZMQ subscriber for new blocks
 ├── config/
+│   ├── coin.go              # Coin profiles (COIN): gbt params, algo, witness rules
 │   └── config.go            # Environment-based configuration loader
 ├── crypto/
 │   └── sha256.go            # SHA-256 and block header helpers
 ├── pool/
+│   ├── address.go           # Payout address to scriptPubKey decoding
 │   ├── coinbase.go          # Coinbase transaction builder
-│   └── job.go               # Job manager and template conversion
+│   ├── job.go               # Job manager and template conversion
+│   └── witness.go           # BIP141 witness commitment and txid helpers
 ├── public/
 │   ├── app.js               # Dashboard frontend logic
 │   ├── index.html           # Dashboard UI
 │   └── terminal.css         # Dashboard terminal-console styles
 ├── stratum/
+│   ├── duplicate.go         # Duplicate share detection per session
 │   ├── server.go            # Stratum server and share validation flow
 │   └── session.go           # Session stats, vardiff, best share tracking
 ├── web/
@@ -50,7 +55,8 @@ ntpool/
 ## Requirements
 
 - Go 1.22+
-- Bitcoin-compatible SHA-256 node with RPC enabled
+- Bitcoin-derived node with RPC enabled (Bitcoin, Auroracoin หรือ DigiByte — ตั้ง `COIN` ให้ตรงกับเหรียญ)
+- pool คำนวณ proof of work แบบ SHA-256d เท่านั้น (`RPC_ALGO=sha256d`); block ของ algo อื่นจะถูก log เตือนและขุดไม่ได้
 - ZMQ `rawblock` publisher enabled if you want instant new-block updates
 - Docker / Docker Compose optional
 
@@ -161,6 +167,32 @@ docker compose down
 - `empty response body` หรือ `invalid JSON response`: ตรวจ `RPC_HOST` และ `RPC_PORT` ว่าชี้ไปยัง HTTP JSON-RPC ไม่ใช่พอร์ต P2P, Stratum หรือ ZMQ รวมถึงตรวจ log ของ node และ proxy
 - หากรัน pool ใน Docker ค่า `127.0.0.1` จะหมายถึง container ของ pool เอง ไม่ใช่เครื่อง host ให้ใช้ชื่อ service ของ node หรือ host ที่ container เข้าถึงได้
 - หากมีข้อความ RPC error จาก node เช่นกำลังโหลด block index ให้ตรวจสถานะ node ตามข้อความนั้น
+- ถ้า log ขึ้น `[JobEngine Go] getblocktemplate failed (...)` แปลว่า node ปฏิเสธคำขอ template เอง (เช่น node บังคับให้ client ประกาศ rule ที่ active, `RPC_ALGO` ไม่ถูกต้อง หรือ node ยัง sync ไม่เสร็จ) — ข้อความจะขึ้นครั้งเดียวต่อ error แต่ละแบบ และจะขึ้น `getblocktemplate recovered` เมื่อกลับมาปกติ
+
+### submitblock Results
+
+`submitblock` คืน `nil` = node รับบล็อกแล้ว ค่าอื่นคือเหตุผลที่ปฏิเสธ ก่อนยิง RPC ทุกครั้ง pool จะ log บรรทัดสรุป:
+
+```text
+[Block] Submitting block #5926373 (0000…215e69): txs=0 coinbaseWitness=false witnessCommitment=6a24aa21a9ed…
+[RPC submitblock] Result: <nil> (err: <nil>)
+```
+
+| result | ความหมาย | สิ่งที่ควรทำ |
+|---|---|---|
+| `nil` | รับบล็อกแล้ว | บันทึก blocks found + แจ้งเตือนอัตโนมัติ |
+| `duplicate` / `duplicate-invalid` | มีบล็อกนี้แล้ว หรือเคยถูกปฏิเสธ | ไม่ต้องทำอะไร |
+| `high-hash` | PoW ไม่ผ่าน target ของ algo นั้น | ตรวจว่า template เป็น algo ที่ `RPC_ALGO` ระบุ (multi-algo) |
+| `bad-txnmrklroot` | merkle root ไม่ตรงกับ tx ที่ส่ง | ตรวจ log `[Job] Witness commitment …` และลำดับ tx |
+| `bad-witness-nonce-size` | มี commitment แต่ reserved value ผิดขนาด | ไม่ควรเกิดแล้ว (pool ใส่ให้เอง) — แจ้ง bug พร้อม log |
+| `unexpected-witness` | block มี witness data แต่ chain ไม่รับ | pool retry แบบไม่มี reserved value และปิดให้เองจน restart |
+| `inconclusive` | node ยังไม่ตัดสิน (มักเป็น race) | เช็ก explorer ก่อนสรุปว่าไม่ผ่าน |
+
+chain ที่ไม่รับ witness data (Auroracoin) จะมีบรรทัดนี้ครั้งเดียวตอนเจอบล็อกแรก แล้วบล็อกถัดไปจะไม่เสีย RPC ยิงซ้ำ:
+
+```text
+[Block] Node rejects witness data (result: unexpected-witness); retrying block #… without the coinbase witness reserved value and disabling it for this chain
+```
 
 ## Runtime Notes
 
@@ -170,6 +202,9 @@ docker compose down
 - เมื่อ `submitblock` สำเร็จ ระบบจะส่งการแจ้งเตือนตาม `ENABLE_NTFY` และ `ENABLE_DISCORD` (Discord ต้องตั้ง webhook URL ด้วย) และ reset best share ของทุก session
 - รายการ blocks found ถูกเก็บไว้ใน `data/found_blocks.json`
 - template ของ block จะถูกตรวจซ้ำทุกไม่กี่วินาที และ broadcast job ใหม่เฉพาะเมื่อเนื้อหาของ template เปลี่ยนจริง (ไม่ใช่ทุกครั้งที่ `curtime` เปลี่ยน) เพื่อไม่ให้ miner ถูก reset งานโดยไม่จำเป็น
+- witness commitment ของ coinbase ถูกคำนวณจากรายการ tx ที่จะส่งจริงตาม BIP141 ส่วนค่าที่ node ส่งมาใน template ใช้เป็นเพียง hint; ถ้าค่าดังกล่าวไม่ใช่สคริปต์ commitment ที่ถูกต้องหรือไม่ตรงกับที่คำนวณได้ จะมี log `[Job] Witness commitment …` แล้วใช้ค่าที่คำนวณเอง
+- chain ที่ validation ไม่รับ witness data (Auroracoin) จะไม่ได้ 32-byte reserved value ใน coinbase — ยังคงมี commitment output ตามปกติ ถ้า node reject ด้วยเหตุผลเรื่อง witness ระบบจะ retry ทันทีและปิด reserved value ให้จนกว่าจะ restart
+- บน chain multi-algo (`aur`, `dgb`) template จะถูกขอตาม `RPC_ALGO` และถ้า node คืน `pow_algo` ไม่ตรงกันจะมี `WARNING` ใน log เพราะ block นั้น hash ด้วย algo ที่ pool ไม่รองรับ
 - `STRATUM_IDLE_TIMEOUT` (วินาที, ค่าเริ่มต้น `0` = ปิด) ใช้ตัด connection ที่ไม่ส่งข้อมูลเข้ามาเลยตามเวลาที่กำหนด
 - `STRATUM_MAX_CONNS` (ค่าเริ่มต้น `0` = ไม่จำกัด) ใช้จำกัดจำนวน connection ที่ active พร้อมกัน
 - ตอนปิดโปรแกรม (Ctrl+C / SIGTERM) ระบบจะหยุดรับ connection ใหม่ ปิด session ของ miner และ shutdown web dashboard ให้เรียบร้อยก่อนจบ process
@@ -206,6 +241,8 @@ anyprefix.s21-01
 
 ```bash
 go build ./...
+go vet ./...
+go test ./...   # ไฟล์ *_test.go ถูก gitignore ไว้ ให้เก็บไว้ในเครื่อง
 ```
 
 ## License
