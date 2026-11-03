@@ -69,18 +69,18 @@ func main() {
 			lastTemplateErr = ""
 		}
 
-		// Multi-algo chains such as DigiByte rotate the proof of work algorithm
-		// per block. This pool is SHA-256d only, so a template for another
-		// algorithm is never handed to the miners: they would hash it against a
-		// target the pool cannot meet. The previous job stays valid meanwhile.
+		// Multi-algo chains publish one block that the miners of every algorithm
+		// compete for, so every template is handed out: the pool always hashes
+		// with SHA-256d, which is what its ASIC miners compute. The algorithm the
+		// node reports is only echoed once per change to keep the log readable.
 		if powAlgo, _ := tmpl["pow_algo"].(string); powAlgo != "" && !config.IsSupportedAlgo(powAlgo) {
 			if !strings.EqualFold(powAlgo, lastWarnedPowAlgo) {
 				lastWarnedPowAlgo = powAlgo
-				log.Printf("[JobEngine Go] Skipping template: pow_algo=%s, this pool only mines %s - keeping the previous job", powAlgo, config.SupportedAlgo)
+				log.Printf("[JobEngine Go] Node template carries pow_algo=%s; this pool hashes every template with %s", powAlgo, config.SupportedAlgo)
 			}
-			return
+		} else {
+			lastWarnedPowAlgo = ""
 		}
-		lastWarnedPowAlgo = ""
 
 		fingerprint := pool.TemplateFingerprint(tmpl)
 		currentJob := jobManager.GetCurrentJob()

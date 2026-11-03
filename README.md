@@ -56,7 +56,7 @@ ntpool/
 
 - Go 1.22+
 - Bitcoin-derived node with RPC enabled (Bitcoin, Auroracoin หรือ DigiByte — ตั้ง `COIN` ให้ตรงกับเหรียญ)
-- pool คำนวณ proof of work แบบ SHA-256d เท่านั้น (`RPC_ALGO=sha256d`); block ของ algo อื่นจะถูก log เตือนและขุดไม่ได้
+- pool hash block header ด้วย **SHA-256d เท่านั้น** (`RPC_ALGO=sha256d`) เพราะรองรับเครื่องขุด SHA-256 ASIC — ส่วน chain แบบ multi-algo (AUR/DGB) ปล่อยบล็อกให้ทุก algo แข่งกัน pool จึงส่งงานที่ node ให้มาทุกบล็อกตามปกติ
 - ZMQ `rawblock` publisher enabled if you want instant new-block updates
 - Docker / Docker Compose optional
 
@@ -125,7 +125,7 @@ COIN=dgb
 
 - node ที่บังคับให้ client ประกาศ rule ที่ active (เช่น `Support for 'digidollar-oracle' rule requires explicit client support`) → เพิ่ม rule นั้นแล้วขอ template ใหม่ให้เอง
 - node ที่ไม่รับ `rules:["segwit"]` (BCH/BSV) → fallback เป็น request ว่าง
-- template ที่มี `pow_algo` ไม่ตรงกับ `RPC_ALGO` → log `WARNING` ว่า block นั้น hash ด้วย algo ที่ pool ไม่รองรับ
+- template ที่ node ระบุ `pow_algo` ต่างจาก sha256d → log ไว้เป็นข้อมูลประกอบ (ไม่กระทบการแจกงาน เพราะ multi-algo chain ปล่อยบล็อกให้ทุก algo แข่งกัน)
 
 ### ตัวอย่าง .env
 
@@ -155,7 +155,7 @@ ZMQ_PORT=28332
 WALLET_ADDRESS=DChangeMeToYourDGBAddress
 ```
 
-**`RPC_ALGO` ต้องเป็น `sha256d` เท่านั้น** — pool จะหยุดทำงานทันที (exit) ถ้าตั้งเป็น algo อื่น เพราะ build นี้ hash block header ด้วย SHA-256d อย่างเดียว ถ้าได้ template ที่ node บอกว่าเป็น algo อื่น (`pow_algo`) pool จะไม่ส่งงานนั้นให้ miner และคง job เดิมไว้
+**`RPC_ALGO` ต้องเป็น `sha256d` เท่านั้น** — pool จะหยุดทำงานทันที (exit) ถ้าตั้งเป็น algo อื่น เพราะ build นี้ hash block header ด้วย SHA-256d อย่างเดียว (ตรงกับ SHA-256 ASIC ที่รองรับ) แต่ไม่มีการกรอง template: บล็อกที่ node ให้มาจะถูกแจกให้ miner ทุกครั้ง แม้ node จะรายงาน `pow_algo` เป็น algo อื่น เพราะ multi-algo chain ปล่อยบล็อกเดียวให้ทุก algo แข่งกัน
 
 ### Coinbase witness
 
@@ -234,7 +234,7 @@ chain ที่ไม่รับ witness data (Auroracoin) จะมีบร�
 - template ของ block จะถูกตรวจซ้ำทุกไม่กี่วินาที และ broadcast job ใหม่เฉพาะเมื่อเนื้อหาของ template เปลี่ยนจริง (ไม่ใช่ทุกครั้งที่ `curtime` เปลี่ยน) เพื่อไม่ให้ miner ถูก reset งานโดยไม่จำเป็น
 - witness commitment ของ coinbase ถูกคำนวณจากรายการ tx ที่จะส่งจริงตาม BIP141 ส่วนค่าที่ node ส่งมาใน template ใช้เป็นเพียง hint; ถ้าค่าดังกล่าวไม่ใช่สคริปต์ commitment ที่ถูกต้องหรือไม่ตรงกับที่คำนวณได้ จะมี log `[Job] Witness commitment …` แล้วใช้ค่าที่คำนวณเอง
 - chain ที่ validation ไม่รับ witness data (Auroracoin) จะไม่ได้ 32-byte reserved value ใน coinbase — ยังคงมี commitment output ตามปกติ ถ้า node reject ด้วยเหตุผลเรื่อง witness ระบบจะ retry ทันทีและปิด reserved value ให้จนกว่าจะ restart
-- บน chain multi-algo (`aur`, `dgb`) template จะถูกขอตาม `RPC_ALGO` และถ้า node คืน `pow_algo` ไม่ตรงกันจะมี `WARNING` ใน log เพราะ block นั้น hash ด้วย algo ที่ pool ไม่รองรับ
+- บน chain multi-algo (`aur`, `dgb`) template จะถูกขอตาม `RPC_ALGO` (sha256d) และถ้า node รายงาน `pow_algo` อื่น จะมี log ไว้ดูเฉย ๆ ไม่มีการข้ามหรือกรองงาน เพราะบล็อกหนึ่งเปิดให้ทุก algo แข่งกัน
 - `STRATUM_IDLE_TIMEOUT` (วินาที, ค่าเริ่มต้น `0` = ปิด) ใช้ตัด connection ที่ไม่ส่งข้อมูลเข้ามาเลยตามเวลาที่กำหนด
 - `STRATUM_MAX_CONNS` (ค่าเริ่มต้น `0` = ไม่จำกัด) ใช้จำกัดจำนวน connection ที่ active พร้อมกัน
 - ตอนปิดโปรแกรม (Ctrl+C / SIGTERM) ระบบจะหยุดรับ connection ใหม่ ปิด session ของ miner และ shutdown web dashboard ให้เรียบร้อยก่อนจบ process
@@ -279,6 +279,8 @@ go test ./...   # ไฟล์ *_test.go ถูก gitignore ไว้ ให้
 
 | version | สรุป |
 |---|---|
+| `1.3.1` | ยกเลิกการกรอง template ตาม `pow_algo` — multi-algo chain ปล่อยบล็อกเดียวให้ทุก algo แข่งกัน pool จึงแจกงานทุกบล็อก (hash ด้วย sha256d ตามเดิม) |
+| `1.3.0` | บังคับ `RPC_ALGO=sha256d` (หยุดทำงานถ้าตั้ง algo อื่น) + เอกสาร `.env` อย่างละเอียดและ changelog |
 | `1.2.2` | Auroracoin: ไม่ใส่ coinbase witness reserved value (node ปฏิเสธ witness data) — ถ้าโดน reject ระบบจะ retry และปิดให้เองจน restart |
 | `1.2.1` | ส่ง mining algorithm ให้ node multi-algo (`aur`, `dgb`) — ก่อนหน้านี้ node ใช้ `miningalgo` ของตัวเองซึ่งอาจไม่ใช่ sha256d |
 | `1.2.0` | coin profile `COIN=aur/dgb/btc`, log `getblocktemplate` ที่เคยถูกกลืน, เตือนเมื่อ `pow_algo` ไม่ตรง |
@@ -286,7 +288,7 @@ go test ./...   # ไฟล์ *_test.go ถูก gitignore ไว้ ให้
 | `1.1.0` | ใส่ coinbase witness nonce สำหรับบล็อก segwit |
 | `1.0.5` | Discord notification และ market quote บน dashboard |
 
-ตั้งแต่ `1.2.2` เป็นต้นไป pool ถือว่า **SHA-256d only**: `RPC_ALGO` อื่นจะทำให้โปรแกรมหยุดทันที และ template ที่ไม่ใช่ sha256d จะไม่ถูก broadcast
+**SHA-256d only** หมายถึงตัว *hash ที่ pool คำนวณ* (ให้ตรงกับ SHA-256 ASIC) ไม่ใช่การกรองงาน: `RPC_ALGO` อื่นจะทำให้โปรแกรมหยุดทันที แต่ template ทุกอันที่ node ให้มาจะถูกแจกให้ miner ตามปกติ
 
 ## License
 
