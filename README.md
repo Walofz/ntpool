@@ -110,9 +110,9 @@ COIN=dgb
 
 | profile | getblocktemplate | algo parameter | หมายเหตุ |
 |---|---|---|---|
-| `aur` | `{"rules":["segwit"]}` | ไม่ส่ง | Auroracoin (Litecoin-derived, algo เดียว) |
-| `dgb` | `{"rules":["segwit"]}`, `"sha256d"` | ส่ง | DigiByte multi-algo; ถ้า node ไม่รับพารามิเตอร์จะ retry แบบไม่ส่งให้อัตโนมัติ |
-| `btc` | `{"rules":["segwit"]}` | ไม่ส่ง | Bitcoin และ fork ที่เหมือนกัน |
+| `aur` | `{"rules":["segwit"]}`, `"sha256d"` | ส่ง | Auroracoin multi-algo (`sha256d`/`scrypt`/`groestl`/`skein`/`qubit`) |
+| `dgb` | `{"rules":["segwit"]}`, `"sha256d"` | ส่ง | DigiByte multi-algo (`+ odo`); ถ้า node ไม่รับพารามิเตอร์จะ retry แบบไม่ส่งให้อัตโนมัติ |
+| `btc` | `{"rules":["segwit"]}` | ไม่ส่ง | Bitcoin และ fork ที่เหมือนกัน (algo เดียว) |
 | *(ไม่ตั้ง)* | `{"rules":["segwit"]}` | ไม่ส่ง | generic — พฤติกรรมเดิมก่อนมี profile |
 
 นอกจาก profile แล้ว pool ยังปรับตัวตาม node ตอน runtime:

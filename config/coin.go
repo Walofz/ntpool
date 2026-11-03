@@ -20,16 +20,25 @@ type CoinProfile struct {
 	// for a block template.
 	GbtRules []string
 	// GbtAlgoParam reports that getblocktemplate accepts the mining algorithm
-	// as a second positional parameter, as DigiByte multi-algo nodes do.
+	// as a second positional parameter. Both DigiByte and Auroracoin are
+	// multi-algo chains with this signature; without it the node builds the
+	// template for its own startup `miningalgo` default, which may not be the
+	// algorithm this pool hashes with.
 	GbtAlgoParam bool
+	// GbtAlgos lists the algorithm names the node accepts when GbtAlgoParam is
+	// set, so a typo in RPC_ALGO can be reported at startup instead of showing
+	// up as a broken template.
+	GbtAlgos []string
 }
 
 var coinProfiles = map[string]CoinProfile{
 	"aur": {
-		Name:     "aur",
-		Symbol:   "AUR",
-		Algo:     "sha256d",
-		GbtRules: []string{"segwit"},
+		Name:         "aur",
+		Symbol:       "AUR",
+		Algo:         "sha256d",
+		GbtRules:     []string{"segwit"},
+		GbtAlgoParam: true,
+		GbtAlgos:     []string{"sha256d", "scrypt", "groestl", "skein", "qubit"},
 	},
 	"dgb": {
 		Name:         "dgb",
@@ -37,12 +46,14 @@ var coinProfiles = map[string]CoinProfile{
 		Algo:         "sha256d",
 		GbtRules:     []string{"segwit"},
 		GbtAlgoParam: true,
+		GbtAlgos:     []string{"sha256d", "scrypt", "groestl", "skein", "qubit", "odo"},
 	},
 	"btc": {
 		Name:     "btc",
 		Symbol:   "BTC",
 		Algo:     "sha256d",
 		GbtRules: []string{"segwit"},
+		GbtAlgos: []string{"sha256d"},
 	},
 }
 
@@ -84,6 +95,20 @@ func ResolveCoinProfile(key, symbol string) CoinProfile {
 func (p CoinProfile) UsesSegwit() bool {
 	for _, rule := range p.GbtRules {
 		if rule == "segwit" {
+			return true
+		}
+	}
+	return false
+}
+
+// SupportsAlgo reports whether algo is one of the algorithm names the profile's
+// node accepts. A profile without a known algorithm list accepts anything.
+func (p CoinProfile) SupportsAlgo(algo string) bool {
+	if len(p.GbtAlgos) == 0 {
+		return true
+	}
+	for _, known := range p.GbtAlgos {
+		if strings.EqualFold(known, algo) {
 			return true
 		}
 	}
