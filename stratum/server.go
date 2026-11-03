@@ -273,6 +273,23 @@ func (s *StratumServer) isSubmitBlockAccepted(result interface{}, err error) boo
 	return false
 }
 
+// isWitnessRejection reports whether a submitblock result complains about the
+// witness layout of the block, e.g. "unexpected-witness" or
+// "bad-witness-nonce-size". Such a block is worth retrying without the coinbase
+// witness reserved value, because a node that does not enforce segwit rejects
+// the reserved value but still accepts a legacy coinbase.
+func isWitnessRejection(result interface{}, err error) bool {
+	if err != nil {
+		return false
+	}
+	reason, ok := result.(string)
+	if !ok {
+		return false
+	}
+	reason = strings.ToLower(strings.TrimSpace(reason))
+	return strings.Contains(reason, "witness")
+}
+
 func (s *StratumServer) Start() error {
 	addr := fmt.Sprintf(":%d", s.cfg.StratumPort)
 	listener, err := net.Listen("tcp", addr)
@@ -865,9 +882,23 @@ primaryLoop:
 			return
 		}
 
-		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, job.DefaultWitnessCommitment != "")
+		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, cb.HasWitness)
+		log.Printf("[Block] Submitting block #%d (%s): txs=%d coinbaseWitness=%t witnessCommitment=%s",
+			job.BlockHeight, blockHashHex, len(job.TxsData), cb.HasWitness, job.DefaultWitnessCommitment)
 		res, err := s.bitcoinRpc.SubmitBlock(blockHex)
 		log.Printf("[RPC submitblock] Result: %v (err: %v)", res, err)
+
+		if !s.isSubmitBlockAccepted(res, err) && cb.HasWitness && isWitnessRejection(res, err) {
+			// The merkle root is built from the coinbase txid, which does not
+			// cover witness data, so dropping the witness stack keeps the same
+			// header and proof of work. Nodes that define the witness
+			// commitment but do not enforce segwit reject the reserved value
+			// while still accepting the legacy coinbase.
+			retryHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, false)
+			log.Printf("[Block] Node reported %v; retrying block #%d without the coinbase witness reserved value", res, job.BlockHeight)
+			res, err = s.bitcoinRpc.SubmitBlock(retryHex)
+			log.Printf("[RPC submitblock retry] Result: %v (err: %v)", res, err)
+		}
 
 		if !s.isSubmitBlockAccepted(res, err) {
 			log.Printf("[Block] Node did not accept block #%d (%s), result: %v err: %v - not recorded as found", job.BlockHeight, blockHashHex, res, err)

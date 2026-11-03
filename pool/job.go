@@ -73,23 +73,27 @@ func (jm *JobManager) CalculateMerkleBranch(txs []map[string]interface{}) []stri
 		// The merkle tree commits to txids. GBT's "hash" field is the wtxid
 		// (it includes witness data), so using it yields an invalid merkle root
 		// as soon as a template carries segwit transactions.
-		if txidStr, ok := tx["txid"].(string); ok && txidStr != "" {
-			b, err := hex.DecodeString(txidStr)
-			if err == nil {
+		txidStr, _ := tx["txid"].(string)
+		dataStr, _ := tx["data"].(string)
+
+		if txidStr != "" {
+			if b, err := hex.DecodeString(txidStr); err == nil && len(b) == 32 {
 				hashes = append(hashes, crypto.ReverseBytes(b))
 				continue
 			}
-		} else if hashStr, ok := tx["hash"].(string); ok && hashStr != "" {
-			b, err := hex.DecodeString(hashStr)
-			if err == nil {
-				hashes = append(hashes, crypto.ReverseBytes(b))
+		}
+		// No usable "txid": rebuild it from the serialized transaction. The
+		// witness part has to be stripped first, otherwise the leaf is the
+		// wtxid and the branch is wrong again.
+		if dataStr != "" {
+			if txid, ok := TxidFromData(dataStr); ok {
+				hashes = append(hashes, txid)
 				continue
 			}
-		} else if dataStr, ok := tx["data"].(string); ok && dataStr != "" {
-			b, err := hex.DecodeString(dataStr)
-			if err == nil {
-				hashes = append(hashes, crypto.Sha256d(b))
-				continue
+		}
+		if hashStr, _ := tx["hash"].(string); hashStr != "" {
+			if b, err := hex.DecodeString(hashStr); err == nil && len(b) == 32 {
+				hashes = append(hashes, crypto.ReverseBytes(b))
 			}
 		}
 	}
@@ -161,6 +165,13 @@ func (jm *JobManager) CreateJob(template map[string]interface{}) *MiningJob {
 	if minerAddr == "" {
 		minerAddr = jm.cfg.PoolFeeAddress
 	}
+
+	// The commitment has to describe the transactions we actually submit, and
+	// the coinbase has to carry it whenever the block carries witness data.
+	// Trusting only the template field is what makes a node answer
+	// "unexpected-witness" (witness in the block, no commitment output) or
+	// "bad-witness-nonce-size" (commitment output, no reserved value).
+	witnessCommitment = EffectiveWitnessCommitment(int64(height), witnessCommitment, txsData)
 
 	cbParts := BuildCoinbaseTransaction(
 		jm.cfg,
