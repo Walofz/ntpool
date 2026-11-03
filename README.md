@@ -121,6 +121,12 @@ COIN=dgb
 - node ที่ไม่รับ `rules:["segwit"]` (BCH/BSV) → fallback เป็น request ว่าง
 - template ที่มี `pow_algo` ไม่ตรงกับ `RPC_ALGO` → log `WARNING` ว่า block นั้น hash ด้วย algo ที่ pool ไม่รองรับ
 
+### Coinbase witness
+
+- `aur`: node คืน `default_witness_commitment` มา แต่ validation ยังปฏิเสธ witness data (`unexpected-witness`) → pool ใส่ **output commitment** ตามปกติ แต่ **ไม่ใส่** 32-byte reserved value
+- `dgb`, `btc`: ใส่ทั้ง commitment และ reserved value
+- ถ้า node reject ด้วยเหตุผลเรื่อง witness ระบบจะ retry แบบไม่มี reserved value ให้ทันที และ**จำไว้จนกว่าจะ restart** (บล็อกถัด ๆ ไปจะไม่เสีย RPC ยิง reject อีก) — header/PoW ไม่เปลี่ยนเพราะ merkle root สร้างจาก coinbase txid
+
 ## Running Locally
 
 ```bash

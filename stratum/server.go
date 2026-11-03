@@ -69,6 +69,10 @@ type StratumServer struct {
 	listener           net.Listener
 	stopChan           chan struct{}
 	activeConns        int64
+	// witnessRejected records that the node refused a block because it carried
+	// witness data. Profiles that advertise witness support start optimistic and
+	// learn here, so only the first block pays for the rejection.
+	witnessRejected atomic.Bool
 }
 
 func NewStratumServer(cfg *config.Config, jm *pool.JobManager, rpc *bitcoin.BitcoinRpcClient) *StratumServer {
@@ -288,6 +292,20 @@ func isWitnessRejection(result interface{}, err error) bool {
 	}
 	reason = strings.ToLower(strings.TrimSpace(reason))
 	return strings.Contains(reason, "witness")
+}
+
+// coinbaseWitnessAllowed decides whether the 32-byte witness reserved value may
+// be added to the coinbase. hasCommitment is CoinbaseParts.HasWitness, so the
+// value is only ever added to a coinbase that carries the commitment output.
+//
+// The profile answers up front (Auroracoin publishes a commitment but rejects
+// any witness data), and a node's rejection overrules the profile for the rest
+// of the run.
+func (s *StratumServer) coinbaseWitnessAllowed(hasCommitment bool) bool {
+	if !hasCommitment || !s.cfg.CoinProfile.WitnessData {
+		return false
+	}
+	return !s.witnessRejected.Load()
 }
 
 func (s *StratumServer) Start() error {
@@ -882,20 +900,22 @@ primaryLoop:
 			return
 		}
 
-		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, cb.HasWitness)
+		hasWitness := s.coinbaseWitnessAllowed(cb.HasWitness)
+		blockHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, hasWitness)
 		log.Printf("[Block] Submitting block #%d (%s): txs=%d coinbaseWitness=%t witnessCommitment=%s",
-			job.BlockHeight, blockHashHex, len(job.TxsData), cb.HasWitness, job.DefaultWitnessCommitment)
+			job.BlockHeight, blockHashHex, len(job.TxsData), hasWitness, job.DefaultWitnessCommitment)
 		res, err := s.bitcoinRpc.SubmitBlock(blockHex)
 		log.Printf("[RPC submitblock] Result: %v (err: %v)", res, err)
 
-		if !s.isSubmitBlockAccepted(res, err) && cb.HasWitness && isWitnessRejection(res, err) {
-			// The merkle root is built from the coinbase txid, which does not
-			// cover witness data, so dropping the witness stack keeps the same
-			// header and proof of work. Nodes that define the witness
-			// commitment but do not enforce segwit reject the reserved value
-			// while still accepting the legacy coinbase.
+		if !s.isSubmitBlockAccepted(res, err) && hasWitness && isWitnessRejection(res, err) {
+			// The chain publishes a witness commitment but validates legacy
+			// rules (Auroracoin). The merkle root is built from the coinbase
+			// txid, which does not cover witness data, so dropping the reserved
+			// value keeps the same header and proof of work. Remember it so the
+			// next blocks skip the value from the start.
+			s.witnessRejected.Store(true)
 			retryHex := s.buildFullBlockHex(finalHeader, matchedCoinbaseTxHex, job.TxsData, false)
-			log.Printf("[Block] Node reported %v; retrying block #%d without the coinbase witness reserved value", res, job.BlockHeight)
+			log.Printf("[Block] Node rejects witness data (result: %v); retrying block #%d without the coinbase witness reserved value and disabling it for this chain", res, job.BlockHeight)
 			res, err = s.bitcoinRpc.SubmitBlock(retryHex)
 			log.Printf("[RPC submitblock retry] Result: %v (err: %v)", res, err)
 		}

@@ -29,6 +29,12 @@ type CoinProfile struct {
 	// set, so a typo in RPC_ALGO can be reported at startup instead of showing
 	// up as a broken template.
 	GbtAlgos []string
+	// WitnessData reports whether blocks on this chain may carry witness data,
+	// i.e. whether the coinbase may hold the 32-byte reserved value. Auroracoin
+	// returns a default_witness_commitment in its template but rejects any block
+	// containing witness data with "unexpected-witness", so the reserved value
+	// has to stay out there; the commitment output itself is harmless.
+	WitnessData bool
 }
 
 var coinProfiles = map[string]CoinProfile{
@@ -39,6 +45,9 @@ var coinProfiles = map[string]CoinProfile{
 		GbtRules:     []string{"segwit"},
 		GbtAlgoParam: true,
 		GbtAlgos:     []string{"sha256d", "scrypt", "groestl", "skein", "qubit"},
+		// The node publishes a witness commitment but its validation still
+		// rejects witness data, so the reserved value must not be added.
+		WitnessData: false,
 	},
 	"dgb": {
 		Name:         "dgb",
@@ -47,13 +56,15 @@ var coinProfiles = map[string]CoinProfile{
 		GbtRules:     []string{"segwit"},
 		GbtAlgoParam: true,
 		GbtAlgos:     []string{"sha256d", "scrypt", "groestl", "skein", "qubit", "odo"},
+		WitnessData:  true,
 	},
 	"btc": {
-		Name:     "btc",
-		Symbol:   "BTC",
-		Algo:     "sha256d",
-		GbtRules: []string{"segwit"},
-		GbtAlgos: []string{"sha256d"},
+		Name:        "btc",
+		Symbol:      "BTC",
+		Algo:        "sha256d",
+		GbtRules:    []string{"segwit"},
+		GbtAlgos:    []string{"sha256d"},
+		WitnessData: true,
 	},
 }
 
@@ -84,10 +95,11 @@ func ResolveCoinProfile(key, symbol string) CoinProfile {
 		symbol = "BTC"
 	}
 	return CoinProfile{
-		Name:     "generic",
-		Symbol:   symbol,
-		Algo:     "sha256d",
-		GbtRules: []string{"segwit"},
+		Name:        "generic",
+		Symbol:      symbol,
+		Algo:        "sha256d",
+		GbtRules:    []string{"segwit"},
+		WitnessData: true,
 	}
 }
 

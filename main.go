@@ -24,8 +24,8 @@ func main() {
 	log.Printf("==========================================================")
 	log.Printf("   🚀 %s (Go High-Performance Engine)", cfg.PoolName)
 	log.Printf("==========================================================")
-	log.Printf("[Config] coin profile %s (symbol %s, pow %s, algo-param %t, gbt rules %v)",
-		cfg.Coin, cfg.CoinSymbol, cfg.RpcAlgo, cfg.CoinProfile.GbtAlgoParam, cfg.CoinProfile.GbtRules)
+	log.Printf("[Config] coin profile %s (symbol %s, pow %s, algo-param %t, coinbase witness %t, gbt rules %v)",
+		cfg.Coin, cfg.CoinSymbol, cfg.RpcAlgo, cfg.CoinProfile.GbtAlgoParam, cfg.CoinProfile.WitnessData, cfg.CoinProfile.GbtRules)
 	if !cfg.CoinProfile.SupportsAlgo(cfg.RpcAlgo) {
 		log.Printf("[Config] ERROR: RPC_ALGO=%q is not a %s mining algorithm (valid: %v)", cfg.RpcAlgo, cfg.Coin, cfg.CoinProfile.GbtAlgos)
 	}
