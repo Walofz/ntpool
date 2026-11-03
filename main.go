@@ -26,8 +26,11 @@ func main() {
 	log.Printf("==========================================================")
 	log.Printf("[Config] coin profile %s (symbol %s, pow %s, algo-param %t, coinbase witness %t, gbt rules %v)",
 		cfg.Coin, cfg.CoinSymbol, cfg.RpcAlgo, cfg.CoinProfile.GbtAlgoParam, cfg.CoinProfile.WitnessData, cfg.CoinProfile.GbtRules)
-	if !cfg.CoinProfile.SupportsAlgo(cfg.RpcAlgo) {
-		log.Printf("[Config] ERROR: RPC_ALGO=%q is not a %s mining algorithm (valid: %v)", cfg.RpcAlgo, cfg.Coin, cfg.CoinProfile.GbtAlgos)
+	// This build hashes the block header with SHA-256d only, so any other
+	// algorithm would silently produce blocks that cannot win.
+	if !config.IsSupportedAlgo(cfg.RpcAlgo) {
+		log.Fatalf("[Config] RPC_ALGO=%q is not supported: this pool computes SHA-256d only (node %s accepts %v). Set RPC_ALGO=%s.",
+			cfg.RpcAlgo, cfg.Coin, cfg.CoinProfile.GbtAlgos, config.SupportedAlgo)
 	}
 
 	if !pool.IsValidAddress(cfg.WalletAddress) {
@@ -67,16 +70,17 @@ func main() {
 		}
 
 		// Multi-algo chains such as DigiByte rotate the proof of work algorithm
-		// per block. Say so when the template is for an algorithm this pool
-		// cannot hash, instead of hashing against the wrong target.
-		if powAlgo, _ := tmpl["pow_algo"].(string); powAlgo != "" {
-			if strings.EqualFold(powAlgo, cfg.RpcAlgo) {
-				lastWarnedPowAlgo = ""
-			} else if !strings.EqualFold(powAlgo, lastWarnedPowAlgo) {
+		// per block. This pool is SHA-256d only, so a template for another
+		// algorithm is never handed to the miners: they would hash it against a
+		// target the pool cannot meet. The previous job stays valid meanwhile.
+		if powAlgo, _ := tmpl["pow_algo"].(string); powAlgo != "" && !config.IsSupportedAlgo(powAlgo) {
+			if !strings.EqualFold(powAlgo, lastWarnedPowAlgo) {
 				lastWarnedPowAlgo = powAlgo
-				log.Printf("[JobEngine Go] WARNING: template is for pow_algo=%s but RPC_ALGO=%s - this block cannot be hashed by the pool", powAlgo, cfg.RpcAlgo)
+				log.Printf("[JobEngine Go] Skipping template: pow_algo=%s, this pool only mines %s - keeping the previous job", powAlgo, config.SupportedAlgo)
 			}
+			return
 		}
+		lastWarnedPowAlgo = ""
 
 		fingerprint := pool.TemplateFingerprint(tmpl)
 		currentJob := jobManager.GetCurrentJob()

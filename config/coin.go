@@ -2,6 +2,17 @@ package config
 
 import "strings"
 
+// SupportedAlgo is the only proof of work this pool can compute. The block
+// header is hashed with it (crypto.Sha256d) and it is the algorithm asked from
+// multi-algo nodes, so any other value would produce blocks the pool cannot
+// validate locally nor win.
+const SupportedAlgo = "sha256d"
+
+// IsSupportedAlgo reports whether this build can mine with algo.
+func IsSupportedAlgo(algo string) bool {
+	return strings.EqualFold(strings.TrimSpace(algo), SupportedAlgo)
+}
+
 // CoinProfile collects everything the pool has to do differently for one chain.
 // The pool itself stays coin agnostic: switching coins is one environment
 // variable (COIN), and the parts that cannot be hardcoded (the mining algorithm

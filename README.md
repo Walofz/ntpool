@@ -127,6 +127,36 @@ COIN=dgb
 - node ที่ไม่รับ `rules:["segwit"]` (BCH/BSV) → fallback เป็น request ว่าง
 - template ที่มี `pow_algo` ไม่ตรงกับ `RPC_ALGO` → log `WARNING` ว่า block นั้น hash ด้วย algo ที่ pool ไม่รองรับ
 
+### ตัวอย่าง .env
+
+Auroracoin:
+
+```env
+COIN=AUR
+COIN_SYMBOL=AUR
+RPC_HOST=192.168.99.254
+RPC_PORT=12341
+RPC_ALGO=sha256d
+ZMQ_HOST=192.168.99.254
+ZMQ_PORT=28332
+WALLET_ADDRESS=AWPuDcCymof8BRF9cfkxnLqmhn7ZPVPjEr
+```
+
+DigiByte:
+
+```env
+COIN=DGB
+COIN_SYMBOL=DGB
+RPC_HOST=192.168.99.254
+RPC_PORT=14022
+RPC_ALGO=sha256d
+ZMQ_HOST=192.168.99.254
+ZMQ_PORT=28332
+WALLET_ADDRESS=DChangeMeToYourDGBAddress
+```
+
+**`RPC_ALGO` ต้องเป็น `sha256d` เท่านั้น** — pool จะหยุดทำงานทันที (exit) ถ้าตั้งเป็น algo อื่น เพราะ build นี้ hash block header ด้วย SHA-256d อย่างเดียว ถ้าได้ template ที่ node บอกว่าเป็น algo อื่น (`pow_algo`) pool จะไม่ส่งงานนั้นให้ miner และคง job เดิมไว้
+
 ### Coinbase witness
 
 - `aur`: node คืน `default_witness_commitment` มา แต่ validation ยังปฏิเสธ witness data (`unexpected-witness`) → pool ใส่ **output commitment** ตามปกติ แต่ **ไม่ใส่** 32-byte reserved value
@@ -244,6 +274,19 @@ go build ./...
 go vet ./...
 go test ./...   # ไฟล์ *_test.go ถูก gitignore ไว้ ให้เก็บไว้ในเครื่อง
 ```
+
+## Changelog
+
+| version | สรุป |
+|---|---|
+| `1.2.2` | Auroracoin: ไม่ใส่ coinbase witness reserved value (node ปฏิเสธ witness data) — ถ้าโดน reject ระบบจะ retry และปิดให้เองจน restart |
+| `1.2.1` | ส่ง mining algorithm ให้ node multi-algo (`aur`, `dgb`) — ก่อนหน้านี้ node ใช้ `miningalgo` ของตัวเองซึ่งอาจไม่ใช่ sha256d |
+| `1.2.0` | coin profile `COIN=aur/dgb/btc`, log `getblocktemplate` ที่เคยถูกกลืน, เตือนเมื่อ `pow_algo` ไม่ตรง |
+| `1.1.1` | คำนวณ witness commitment เองจาก tx ที่จะส่งจริง แทนการเชื่อถือค่าจาก template |
+| `1.1.0` | ใส่ coinbase witness nonce สำหรับบล็อก segwit |
+| `1.0.5` | Discord notification และ market quote บน dashboard |
+
+ตั้งแต่ `1.2.2` เป็นต้นไป pool ถือว่า **SHA-256d only**: `RPC_ALGO` อื่นจะทำให้โปรแกรมหยุดทันที และ template ที่ไม่ใช่ sha256d จะไม่ถูก broadcast
 
 ## License
 
