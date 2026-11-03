@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -149,19 +151,105 @@ func (c *BitcoinRpcClient) Call(method string, params []interface{}) (map[string
 	return map[string]interface{}{"result": jsonResp["result"]}, nil
 }
 
+// GetBlockTemplate asks the node for a block template using the parameters the
+// configured coin profile expects. Requests get simpler on every failure:
+//
+//  1. the profile rules plus the mining algorithm (multi-algo nodes such as
+//     DigiByte accept the algorithm as a second parameter)
+//  2. the profile rules only (single-algo nodes reject the extra parameter)
+//  3. an empty request (pre-segwit forks reject the segwit rule)
+//
+// A node may also demand explicit client support for an active deployment
+// ("Support for 'x' rule requires explicit client support"). That rule only
+// describes what the pool understands, so it is added and the request is retried
+// instead of leaving the pool without work.
 func (c *BitcoinRpcClient) GetBlockTemplate() (map[string]interface{}, error) {
-	rules := []interface{}{"segwit"}
-	params := []interface{}{
-		map[string]interface{}{
-			"rules": rules,
-		},
+	rules := append([]string{}, c.cfg.CoinProfile.GbtRules...)
+	if len(rules) == 0 {
+		rules = []string{"segwit"}
 	}
-	res, err := c.Call("getblocktemplate", params)
-	if err != nil {
-		// Fallback for altcoin SHA-256 nodes (DigiByte, BCH, BSV, Pepecoin, Luckycoin, etc.)
-		return c.Call("getblocktemplate", []interface{}{map[string]interface{}{}})
+	algo := c.templateAlgo()
+
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		res, err := c.requestBlockTemplate(rules, algo)
+		if err == nil {
+			return res, nil
+		}
+		lastErr = err
+
+		rule := missingClientRule(err)
+		if rule == "" || containsString(rules, rule) {
+			break
+		}
+		rules = append(rules, rule)
 	}
-	return res, nil
+
+	// Fallback for altcoin SHA-256 nodes (BCH, BSV, Pepecoin, Luckycoin, etc.)
+	// that reject the segwit rule.
+	res, fallbackErr := c.Call("getblocktemplate", []interface{}{map[string]interface{}{}})
+	if fallbackErr == nil {
+		return res, nil
+	}
+	if lastErr != nil {
+		return nil, fmt.Errorf("%v (plain request: %w)", lastErr, fallbackErr)
+	}
+	return nil, fallbackErr
+}
+
+// requestBlockTemplate sends one getblocktemplate request, dropping the
+// algorithm parameter when the node does not know it.
+func (c *BitcoinRpcClient) requestBlockTemplate(rules []string, algo string) (map[string]interface{}, error) {
+	ruleValues := make([]interface{}, 0, len(rules))
+	for _, rule := range rules {
+		ruleValues = append(ruleValues, rule)
+	}
+	params := []interface{}{map[string]interface{}{"rules": ruleValues}}
+
+	if algo == "" || !c.cfg.CoinProfile.GbtAlgoParam {
+		return c.Call("getblocktemplate", params)
+	}
+
+	if res, err := c.Call("getblocktemplate", []interface{}{params[0], algo}); err == nil {
+		return res, nil
+	}
+	// The node does not take an algorithm argument: retry without it.
+	return c.Call("getblocktemplate", params)
+}
+
+// templateAlgo returns the algorithm to request from multi-algo nodes.
+func (c *BitcoinRpcClient) templateAlgo() string {
+	if !c.cfg.CoinProfile.GbtAlgoParam {
+		return ""
+	}
+	algo := strings.TrimSpace(c.cfg.RpcAlgo)
+	if algo == "" {
+		algo = c.cfg.CoinProfile.Algo
+	}
+	return algo
+}
+
+var clientRulePattern = regexp.MustCompile(`Support for '([^']+)' rule requires explicit client support`)
+
+// missingClientRule extracts the rule name a node wants the client to declare.
+func missingClientRule(err error) string {
+	if err == nil {
+		return ""
+	}
+	match := clientRulePattern.FindStringSubmatch(err.Error())
+	if len(match) != 2 {
+		return ""
+	}
+	return match[1]
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if strings.EqualFold(value, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *BitcoinRpcClient) SubmitBlock(blockHex string) (interface{}, error) {

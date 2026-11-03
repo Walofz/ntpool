@@ -77,7 +77,8 @@ cp .env.example .env
 | `RPC_USER` | RPC username | `bitcoinrpc` |
 | `RPC_PASSWORD` | RPC password | `rpcpassword` |
 | `RPC_NETWORK` | network name ที่ใช้แสดงผล เช่น `mainnet`, `testnet`, `regtest` | `mainnet` |
-| `RPC_ALGO` | อัลกอริทึมของ chain | `sha256d` |
+| `RPC_ALGO` | อัลกอริทึมของ chain (ใช้ทั้ง hash header และส่งให้ node ที่รองรับ multi-algo) | `sha256d` |
+| `COIN` | coin profile ที่เลือกใช้: `aur`, `dgb`, `btc` (ว่าง = generic segwit) — กำหนด parameter ของ `getblocktemplate` ให้เอง; ถ้าไม่ตั้งจะเดาจาก `COIN_SYMBOL` | `""` |
 | `ZMQ_HOST` | host ของ ZMQ publisher | `127.0.0.1` |
 | `ZMQ_PORT` | พอร์ตของ ZMQ `rawblock` | `28332` |
 | `POOL_NAME` | ชื่อ pool | `ntpool SHA-256 Solo Pool` |
@@ -98,6 +99,27 @@ cp .env.example .env
 | `DISCORD_WEBHOOK_URL` | Discord webhook URL สำหรับแจ้งเตือนเมื่อพบบล็อก | `""` |
 | `DISCORD_USERNAME` | ชื่อผู้ส่งที่แสดงใน Discord (ไม่บังคับ) | `""` |
 | `DISCORD_AVATAR_URL` | URL รูปภาพสาธารณะสำหรับ avatar ของผู้ส่ง เช่น PNG (ไม่บังคับ) | `""` |
+
+## Coin Profiles
+
+เลือกเหรียญที่จะขุดด้วย `COIN` อย่างเดียว ไม่ต้องแก้โค้ด:
+
+```env
+COIN=dgb
+```
+
+| profile | getblocktemplate | algo parameter | หมายเหตุ |
+|---|---|---|---|
+| `aur` | `{"rules":["segwit"]}` | ไม่ส่ง | Auroracoin (Litecoin-derived, algo เดียว) |
+| `dgb` | `{"rules":["segwit"]}`, `"sha256d"` | ส่ง | DigiByte multi-algo; ถ้า node ไม่รับพารามิเตอร์จะ retry แบบไม่ส่งให้อัตโนมัติ |
+| `btc` | `{"rules":["segwit"]}` | ไม่ส่ง | Bitcoin และ fork ที่เหมือนกัน |
+| *(ไม่ตั้ง)* | `{"rules":["segwit"]}` | ไม่ส่ง | generic — พฤติกรรมเดิมก่อนมี profile |
+
+นอกจาก profile แล้ว pool ยังปรับตัวตาม node ตอน runtime:
+
+- node ที่บังคับให้ client ประกาศ rule ที่ active (เช่น `Support for 'digidollar-oracle' rule requires explicit client support`) → เพิ่ม rule นั้นแล้วขอ template ใหม่ให้เอง
+- node ที่ไม่รับ `rules:["segwit"]` (BCH/BSV) → fallback เป็น request ว่าง
+- template ที่มี `pow_algo` ไม่ตรงกับ `RPC_ALGO` → log `WARNING` ว่า block นั้น hash ด้วย algo ที่ pool ไม่รองรับ
 
 ## Running Locally
 

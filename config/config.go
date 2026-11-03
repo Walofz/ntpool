@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -22,26 +23,30 @@ type Config struct {
 	RpcPassword         string
 	RpcNetwork          string
 	RpcAlgo             string
-	ZmqHost             string
-	ZmqPort             int
-	PoolName            string
-	CoinSymbol          string
-	CoinbaseText        string
-	PoolFeePercent      float64
-	PoolFeeAddress      string
-	WalletAddress       string
-	MarketAPIURL        string
-	MarketCoinSymbol    string
-	MarketQuoteSymbol   string
-	EnableNtfy          bool
-	NtfyServer          string
-	NtfyTopic           string
-	NtfyUser            string
-	NtfyPassword        string
-	EnableDiscord       bool
-	DiscordWebhookURL   string
-	DiscordUsername     string
-	DiscordAvatarURL    string
+	// Coin is the resolved profile name (COIN), e.g. "dgb" or "aur".
+	Coin string
+	// CoinProfile holds what has to differ per chain, see coin.go.
+	CoinProfile       CoinProfile
+	ZmqHost           string
+	ZmqPort           int
+	PoolName          string
+	CoinSymbol        string
+	CoinbaseText      string
+	PoolFeePercent    float64
+	PoolFeeAddress    string
+	WalletAddress     string
+	MarketAPIURL      string
+	MarketCoinSymbol  string
+	MarketQuoteSymbol string
+	EnableNtfy        bool
+	NtfyServer        string
+	NtfyTopic         string
+	NtfyUser          string
+	NtfyPassword      string
+	EnableDiscord     bool
+	DiscordWebhookURL string
+	DiscordUsername   string
+	DiscordAvatarURL  string
 }
 
 func getEnv(key, defaultVal string) string {
@@ -79,7 +84,11 @@ func getEnvBool(key string, defaultVal bool) bool {
 }
 
 func LoadConfig() *Config {
-	coinSymbol := getEnv("COIN_SYMBOL", "BTC")
+	coinSymbol := getEnv("COIN_SYMBOL", "")
+	profile := ResolveCoinProfile(getEnv("COIN", ""), coinSymbol)
+	if strings.TrimSpace(coinSymbol) == "" {
+		coinSymbol = profile.Symbol
+	}
 	marketCoinSymbol := getEnv("MARKET_COIN_SYMBOL", coinSymbol)
 
 	return &Config{
@@ -98,7 +107,9 @@ func LoadConfig() *Config {
 		RpcUser:             getEnv("RPC_USER", "bitcoinrpc"),
 		RpcPassword:         getEnv("RPC_PASSWORD", "rpcpassword"),
 		RpcNetwork:          getEnv("RPC_NETWORK", "mainnet"),
-		RpcAlgo:             getEnv("RPC_ALGO", "sha256d"),
+		RpcAlgo:             getEnv("RPC_ALGO", profile.Algo),
+		Coin:                profile.Name,
+		CoinProfile:         profile,
 		ZmqHost:             getEnv("ZMQ_HOST", "127.0.0.1"),
 		ZmqPort:             getEnvInt("ZMQ_PORT", 28332),
 		PoolName:            getEnv("POOL_NAME", "ntpool SHA-256 Solo Pool"),

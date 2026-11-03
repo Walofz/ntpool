@@ -24,6 +24,8 @@ func main() {
 	log.Printf("==========================================================")
 	log.Printf("   🚀 %s (Go High-Performance Engine)", cfg.PoolName)
 	log.Printf("==========================================================")
+	log.Printf("[Config] coin profile %s (symbol %s, pow %s, algo-param %t, gbt rules %v)",
+		cfg.Coin, cfg.CoinSymbol, cfg.RpcAlgo, cfg.CoinProfile.GbtAlgoParam, cfg.CoinProfile.GbtRules)
 
 	if !pool.IsValidAddress(cfg.WalletAddress) {
 		log.Printf("[Config] ERROR: WALLET_ADDRESS %q does not decode to a spendable output script - block rewards would be sent to a burn address. Fix WALLET_ADDRESS in .env", cfg.WalletAddress)
@@ -39,13 +41,38 @@ func main() {
 	// Helper to fetch and broadcast new block template
 	var templateMu sync.Mutex
 	var lastTemplateFingerprint string
+	var lastTemplateErr string
+	var lastWarnedPowAlgo string
 	updateJob := func(reason string) {
 		templateMu.Lock()
 		defer templateMu.Unlock()
 
 		tmpl, err := bitcoinRpc.GetBlockTemplate()
 		if err != nil || tmpl == nil {
+			// Log every distinct failure once. A node that rejects the template
+			// request (missing rule, unsupported parameter, RPC down) otherwise
+			// looks like a pool that silently stopped handing out work.
+			if err != nil && err.Error() != lastTemplateErr {
+				lastTemplateErr = err.Error()
+				log.Printf("[JobEngine Go] getblocktemplate failed (%s): %v", reason, err)
+			}
 			return
+		}
+		if lastTemplateErr != "" {
+			log.Printf("[JobEngine Go] getblocktemplate recovered")
+			lastTemplateErr = ""
+		}
+
+		// Multi-algo chains such as DigiByte rotate the proof of work algorithm
+		// per block. Say so when the template is for an algorithm this pool
+		// cannot hash, instead of hashing against the wrong target.
+		if powAlgo, _ := tmpl["pow_algo"].(string); powAlgo != "" {
+			if strings.EqualFold(powAlgo, cfg.RpcAlgo) {
+				lastWarnedPowAlgo = ""
+			} else if !strings.EqualFold(powAlgo, lastWarnedPowAlgo) {
+				lastWarnedPowAlgo = powAlgo
+				log.Printf("[JobEngine Go] WARNING: template is for pow_algo=%s but RPC_ALGO=%s - this block cannot be hashed by the pool", powAlgo, cfg.RpcAlgo)
+			}
 		}
 
 		fingerprint := pool.TemplateFingerprint(tmpl)

@@ -24,6 +24,7 @@ services:
       - RPC_PASSWORD=${RPC_PASSWORD:-rpcpassword}
       - RPC_NETWORK=${RPC_NETWORK:-mainnet}
       - RPC_ALGO=${RPC_ALGO:-sha256d}
+      - COIN=${COIN:-}
       - ZMQ_HOST=${ZMQ_HOST:-127.0.0.1}
       - ZMQ_PORT=${ZMQ_PORT:-28332}
       - POOL_NAME=${POOL_NAME:-ntpool SHA-256 Solo Pool}
